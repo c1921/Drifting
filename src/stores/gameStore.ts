@@ -14,7 +14,10 @@ import {
   MAX_INITIAL_SWORDS,
   MIN_INITIAL_SHIELDS,
   MAX_INITIAL_SHIELDS,
-  // ... 其他导入的常量
+  PASSERBY_APPEAR_CHANCE,
+  MIN_PASSERBY_DURATION,
+  MAX_PASSERBY_DURATION,
+  MAX_PASSERBY_COUNT
 } from '../constants'
 
 export const useGameStore = defineStore('game', () => {
@@ -35,6 +38,8 @@ export const useGameStore = defineStore('game', () => {
   const teamSpeed = computed(() => {
     return Math.min(...team.value.map(character => character.isRiding ? character.ridingSpeed : character.walkingSpeed))
   })
+
+  const passersby = ref<{ character: Character; expirationTime: number }[]>([])
 
   function initializeGame() {
     player.value = generateCharacter()
@@ -60,18 +65,42 @@ export const useGameStore = defineStore('game', () => {
   }
 
   function updateTime() {
-    currentTime.value = new Date(currentTime.value.getTime() + TIME_UPDATE_INTERVAL)
+    const now = Date.now()
+    currentTime.value = new Date(now)
     if (isTraveling.value) {
       travelDistance.value += teamSpeed.value
       team.value.forEach(updateCharacterWhileTraveling)
       triggerEvents(items.value, log.value)
+      
+      handlePassersby(now)
     } else {
       team.value.forEach(updateCharacterWhileResting)
     }
   }
 
+  function handlePassersby(now: number) {
+    // 移除已经过期的路人
+    passersby.value = passersby.value.filter(p => now < p.expirationTime)
+
+    // 如果路人数量少于最大值,有机会生成新的路人
+    if (passersby.value.length < MAX_PASSERBY_COUNT && Math.random() < PASSERBY_APPEAR_CHANCE) {
+      const newPasserby = generateCharacter()
+      const duration = getRandomValue(MIN_PASSERBY_DURATION, MAX_PASSERBY_DURATION)
+      const expirationTime = now + duration
+
+      passersby.value.push({ character: newPasserby, expirationTime })
+    }
+  }
+
   function toggleTravelState() {
     isTraveling.value = !isTraveling.value
+    // 如果停止旅行，暂停所有路人的计时器
+    if (!isTraveling.value) {
+      const now = Date.now()
+      passersby.value.forEach(p => {
+        p.expirationTime += (TIME_UPDATE_INTERVAL - (now % TIME_UPDATE_INTERVAL))
+      })
+    }
   }
 
   // 辅助函数
@@ -94,6 +123,7 @@ export const useGameStore = defineStore('game', () => {
     selectCharacter,
     isPlayer,
     updateTime,
-    toggleTravelState
+    toggleTravelState,
+    passersby
   }
 })

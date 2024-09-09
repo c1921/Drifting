@@ -36,6 +36,23 @@ export function useCharacterGeneration() {
     }
   }
 
+  function generateCharacterDescription(character: Character): string {
+    let ageDescription: string
+    if (character.age < 18) {
+      ageDescription = '年轻的'
+    } else if (character.age < 30) {
+      ageDescription = '青年'
+    } else if (character.age < 50) {
+      ageDescription = '中年'
+    } else {
+      ageDescription = '年长的'
+    }
+
+    const genderDescription = character.gender === 'male' ? '男性' : '女性'
+
+    return `${ageDescription}${genderDescription}`
+  }
+
   function getRandomElement<T>(arr: T[]): T {
     return arr[Math.floor(Math.random() * arr.length)]
   }
@@ -58,6 +75,7 @@ export function useCharacterGeneration() {
     addGender,
     names,
     genders,
-    getRandomValue  // 添加这一行
+    getRandomValue,
+    generateCharacterDescription
   }
 }

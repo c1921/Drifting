@@ -37,3 +37,11 @@ export const MAX_INITIAL_SHIELDS = 5
 
 // 其他游戏相关常量
 export const TIMER_INTERVAL = 200 // 毫秒
+
+// 路人相关常量
+export const PASSERBY_APPEAR_CHANCE = 0.1 // 10% 的几率出现路人
+export const MIN_PASSERBY_DURATION = 5000 // 5秒
+export const MAX_PASSERBY_DURATION = 15000 // 15秒
+
+// 最大路人数量
+export const MAX_PASSERBY_COUNT = 3 // 同时存在的最大路人数量

@@ -45,3 +45,6 @@ export const MAX_PASSERBY_DURATION = 15000 // 15秒
 
 // 最大路人数量
 export const MAX_PASSERBY_COUNT = 3 // 同时存在的最大路人数量
+
+// 队伍的最大人数
+export const MAX_TEAM_SIZE = 6 // 队伍的最大人数

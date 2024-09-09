@@ -17,13 +17,14 @@ import {
   PASSERBY_APPEAR_CHANCE,
   MIN_PASSERBY_DURATION,
   MAX_PASSERBY_DURATION,
-  MAX_PASSERBY_COUNT
+  MAX_PASSERBY_COUNT,
+  MAX_TEAM_SIZE
 } from '../constants'
 
 export const useGameStore = defineStore('game', () => {
   const { updateCharacterWhileTraveling, updateCharacterWhileResting } = useCharacterUpdate()
   const { triggerEvents } = useEventTrigger()
-  const { generateCharacter, getRandomValue } = useCharacterGeneration()
+  const { generateCharacter, getRandomValue, generateCharacterDescription } = useCharacterGeneration()
 
   const player = ref<Character | null>(null)
   const team = ref<Character[]>([])
@@ -108,6 +109,32 @@ export const useGameStore = defineStore('game', () => {
     return arr[Math.floor(Math.random() * arr.length)]
   }
 
+  function interactWithPasserby(action: 'talk' | 'attack' | 'invite', character: Character) {
+    const passerbyIndex = passersby.value.findIndex(p => p.character.id === character.id);
+    if (passerbyIndex === -1) return;
+
+    switch (action) {
+      case 'talk':
+        log.value.push(`你与${generateCharacterDescription(character)}交谈。`);
+        // 这里可以添加更多的对话逻辑
+        break;
+      case 'attack':
+        log.value.push(`你攻击了${generateCharacterDescription(character)}！`);
+        // 这里可以添加战斗逻辑
+        passersby.value.splice(passerbyIndex, 1);
+        break;
+      case 'invite':
+        if (team.value.length < MAX_TEAM_SIZE) {
+          team.value.push(character);
+          passersby.value.splice(passerbyIndex, 1);
+          log.value.push(`${generateCharacterDescription(character)}加入了你的队伍。`);
+        } else {
+          log.value.push('你的队伍已满,无法邀请更多成员。');
+        }
+        break;
+    }
+  }
+
   return {
     player,
     team,
@@ -124,6 +151,7 @@ export const useGameStore = defineStore('game', () => {
     isPlayer,
     updateTime,
     toggleTravelState,
-    passersby
+    passersby,
+    interactWithPasserby
   }
 })

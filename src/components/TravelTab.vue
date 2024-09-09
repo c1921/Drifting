@@ -8,6 +8,9 @@
       <ul>
         <li v-for="passerby in passersby" :key="passerby.character.id">
           {{ generateCharacterDescription(passerby.character) }}
+          <button @click="talkTo(passerby.character)">{{ $t('talk') }}</button>
+          <button @click="attack(passerby.character)">{{ $t('attack') }}</button>
+          <button @click="invite(passerby.character)">{{ $t('invite') }}</button>
         </li>
       </ul>
     </div>
@@ -19,6 +22,7 @@ import { defineComponent, computed } from 'vue';
 import { useGameStore } from '../stores/gameStore';
 import { storeToRefs } from 'pinia';
 import { useCharacterGeneration } from '../composables/useCharacterGeneration';
+import { Character } from '../types'; // 添加这行
 
 export default defineComponent({
   name: 'TravelTab',
@@ -42,7 +46,26 @@ export default defineComponent({
       emit('toggleTravelState');
     };
 
-    return { toggleTravelState, passersby, generateCharacterDescription };
+    const talkTo = (character: Character) => {
+      gameStore.interactWithPasserby('talk', character);
+    };
+
+    const attack = (character: Character) => {
+      gameStore.interactWithPasserby('attack', character);
+    };
+
+    const invite = (character: Character) => {
+      gameStore.interactWithPasserby('invite', character);
+    };
+
+    return { 
+      toggleTravelState, 
+      passersby, 
+      generateCharacterDescription,
+      talkTo,
+      attack,
+      invite
+    };
   }
 });
 </script>

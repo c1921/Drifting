@@ -16,6 +16,7 @@ const loading = ref(true)
 const error = ref<string>('')
 const graph = ref<Graph | null>(null)
 const selected = ref<string | null>(null)
+const showDistances = ref(false)
 
 async function load() {
   loading.value = true
@@ -103,6 +104,12 @@ function isNeighbor(n: CityNode): boolean {
   const cur = graph.value.nodes[selected.value]
   return cur?.neighbors.includes(n.name) ?? false
 }
+
+function distance(a: CityNode, b: CityNode): number {
+  const dx = a.coord.x - b.coord.x
+  const dy = a.coord.y - b.coord.y
+  return Math.hypot(dx, dy)
+}
 </script>
 
 <template>
@@ -110,13 +117,14 @@ function isNeighbor(n: CityNode): boolean {
     <div class="header">
       <strong>World Map</strong>
       <button class="reload" @click="load" :disabled="loading">{{ loading ? '加载中...' : '刷新' }}</button>
+      <button @click="showDistances = !showDistances">{{ showDistances ? '隐藏距离' : '显示距离' }}</button>
       <span v-if="error" class="error">{{ error }}</span>
     </div>
 
     <svg :viewBox="`0 0 ${viewW} ${viewH}`" class="map-canvas">
       <!-- 边 -->
       <g class="edges">
-        <template v-for="(e) in edges" :key="idx">
+        <template v-for="e in edges" :key="e.a.name + '::' + e.b.name">
           <line
             :x1="projector(e.a.coord).x"
             :y1="projector(e.a.coord).y"
@@ -127,6 +135,22 @@ function isNeighbor(n: CityNode): boolean {
             stroke-linecap="round"
             opacity="0.8"
           />
+        </template>
+      </g>
+
+      <!-- 边距离标注 -->
+      <g v-if="showDistances" class="edge-labels">
+        <template v-for="e in edges" :key="'label::' + e.a.name + '::' + e.b.name">
+          <text
+            :x="(projector(e.a.coord).x + projector(e.b.coord).x) / 2"
+            :y="(projector(e.a.coord).y + projector(e.b.coord).y) / 2 - 4"
+            font-size="12"
+            fill="#111"
+            stroke="#fff"
+            stroke-width="3"
+            stroke-linejoin="round"
+            paint-order="stroke"
+          >{{ distance(e.a, e.b).toFixed(2) }}</text>
         </template>
       </g>
 

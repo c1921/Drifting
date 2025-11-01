@@ -17,6 +17,8 @@ const error = ref<string>('')
 const graph = ref<Graph | null>(null)
 const selected = ref<string | null>(null)
 const showDistances = ref(false)
+const moveMode = ref(false)
+const player = ref<string | null>(null)
 
 async function load() {
   loading.value = true
@@ -32,7 +34,21 @@ async function load() {
   }
 }
 
-onMounted(load)
+async function loadPlayer() {
+  try {
+    const res = await fetch('/api/player')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    player.value = data.location as string
+  } catch (e: any) {
+    // 不阻塞主流程
+  }
+}
+
+onMounted(async () => {
+  await load()
+  await loadPlayer()
+})
 
 const nodes = computed(() => {
   if (!graph.value) return [] as CityNode[]
@@ -110,6 +126,36 @@ function distance(a: CityNode, b: CityNode): number {
   const dy = a.coord.y - b.coord.y
   return Math.hypot(dx, dy)
 }
+
+const playerCity = computed(() => {
+  if (!graph.value || !player.value) return null as CityNode | null
+  return graph.value.nodes[player.value] ?? null
+})
+
+function canMoveTo(n: CityNode): boolean {
+  const p = playerCity.value
+  if (!p) return false
+  return p.neighbors.includes(n.name)
+}
+
+async function moveTo(name: string) {
+  try {
+    const res = await fetch('/api/player/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: name }),
+    })
+    if (!res.ok) {
+      const msg = await res.text()
+      throw new Error(msg || `HTTP ${res.status}`)
+    }
+    const data = await res.json()
+    player.value = data.location as string
+    selected.value = data.location as string
+  } catch (e: any) {
+    error.value = e?.message ?? '移动失败'
+  }
+}
 </script>
 
 <template>
@@ -118,6 +164,7 @@ function distance(a: CityNode, b: CityNode): number {
       <strong>World Map</strong>
       <button class="reload" @click="load" :disabled="loading">{{ loading ? '加载中...' : '刷新' }}</button>
       <button @click="showDistances = !showDistances">{{ showDistances ? '隐藏距离' : '显示距离' }}</button>
+      <button @click="moveMode = !moveMode">{{ moveMode ? '关闭移动模式' : '开启移动模式' }}</button>
       <span v-if="error" class="error">{{ error }}</span>
     </div>
 
@@ -160,7 +207,7 @@ function distance(a: CityNode, b: CityNode): number {
           <g
             class="node"
             :transform="`translate(${projector(n.coord).x}, ${projector(n.coord).y})`"
-            @click="selectNode(n.name)"
+            @click="(moveMode && canMoveTo(n)) ? moveTo(n.name) : selectNode(n.name)"
             style="cursor: pointer;"
           >
             <circle
@@ -177,6 +224,24 @@ function distance(a: CityNode, b: CityNode): number {
             >{{ n.name }}</text>
           </g>
         </template>
+      </g>
+
+      <!-- 玩家位置标记 -->
+      <g v-if="playerCity" class="player">
+        <circle
+          :cx="projector(playerCity.coord).x"
+          :cy="projector(playerCity.coord).y"
+          r="10"
+          fill="none"
+          stroke="#ff3b30"
+          stroke-width="3"
+        />
+        <circle
+          :cx="projector(playerCity.coord).x"
+          :cy="projector(playerCity.coord).y"
+          r="3"
+          fill="#ff3b30"
+        />
       </g>
     </svg>
 

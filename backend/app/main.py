@@ -19,6 +19,15 @@ from pydantic import BaseModel
 
 from backend.app.data.world_map import load_world_graph
 from backend.app.models.map import Graph
+from backend.app.models.team import (
+    TeamResponse,
+    TeamStatsResponse,
+    GameStateResponse,
+    InitGameRequest,
+)
+from backend.app.models.character import CharacterResponse, CharacterListResponse
+from backend.app.services.game_state import GameState
+from backend.app.services.team_service import TeamService
 
 HOURS_PER_DAY = 24
 DEFAULT_MOVE_SPEED = 1.0
@@ -44,6 +53,9 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # 初始化游戏状态管理器
+    app.state.game_state = GameState()
 
     @app.get("/api/health")
     async def health() -> Dict[str, str]:
@@ -78,6 +90,130 @@ def create_app() -> FastAPI:
     async def get_map() -> Graph:
         """获取世界地图图数据"""
         return load_world_graph()
+
+    # --- 游戏初始化和状态管理接口 ---
+
+    @app.post("/api/game/init", response_model=GameStateResponse)
+    async def init_game(request: InitGameRequest = Body(...)) -> GameStateResponse:
+        """
+        初始化新游戏
+        
+        创建玩家角色和2个NPC队友，组建玩家队伍
+        """
+        game_state: GameState = app.state.game_state
+        
+        # 初始化新游戏
+        game_state.initialize_new_game(
+            player_name=request.player_name,
+            team_name=request.team_name,
+            starting_location=request.starting_location
+        )
+        
+        # 同步旧的状态变量（保持向后兼容）
+        app.state.player_location = game_state.current_location
+        app.state.elapsed_hours = game_state.elapsed_hours
+        
+        return GameStateResponse(**game_state.to_dict())
+
+    @app.get("/api/game/state", response_model=GameStateResponse)
+    async def get_game_state() -> GameStateResponse:
+        """获取当前游戏状态"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化，请先调用 /api/game/init")
+        
+        return GameStateResponse(**game_state.to_dict())
+
+    @app.post("/api/game/reset")
+    async def reset_game() -> Dict[str, str]:
+        """重置游戏状态"""
+        game_state: GameState = app.state.game_state
+        game_state.reset()
+        
+        # 重置旧的状态变量
+        app.state.player_location = "Capital"
+        app.state.elapsed_hours = 0.0
+        
+        return {"status": "ok", "message": "游戏已重置"}
+
+    # --- 队伍管理接口 ---
+
+    @app.get("/api/team", response_model=TeamResponse)
+    async def get_team() -> TeamResponse:
+        """获取玩家队伍信息"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized or not game_state.player_team:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化或队伍不存在")
+        
+        team_data = TeamService.serialize_team(game_state.player_team)
+        return TeamResponse(**team_data)
+
+    @app.get("/api/team/members", response_model=CharacterListResponse)
+    async def get_team_members() -> CharacterListResponse:
+        """获取队伍成员列表"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized or not game_state.player_team:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化或队伍不存在")
+        
+        members = [
+            CharacterResponse(**TeamService.serialize_character(member))
+            for member in game_state.player_team.members
+        ]
+        
+        return CharacterListResponse(characters=members, total=len(members))
+
+    @app.get("/api/team/members/{member_id}", response_model=CharacterResponse)
+    async def get_team_member(member_id: str) -> CharacterResponse:
+        """获取指定队伍成员信息"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized or not game_state.player_team:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化或队伍不存在")
+        
+        member = TeamService.get_member_by_id(game_state.player_team, member_id)
+        if not member:
+            raise HTTPException(status_code=404, detail=f"未找到ID为 {member_id} 的队员")
+        
+        return CharacterResponse(**TeamService.serialize_character(member))
+
+    @app.get("/api/team/stats", response_model=TeamStatsResponse)
+    async def get_team_stats() -> TeamStatsResponse:
+        """获取队伍统计信息"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized or not game_state.player_team:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化或队伍不存在")
+        
+        stats = TeamService.calculate_team_stats(game_state.player_team)
+        return TeamStatsResponse(**stats)
+
+    @app.post("/api/team/rest")
+    async def team_rest(days: int = 1) -> Dict[str, Any]:
+        """队伍休息"""
+        game_state: GameState = app.state.game_state
+        
+        if not game_state.is_initialized or not game_state.player_team:
+            raise HTTPException(status_code=400, detail="游戏尚未初始化或队伍不存在")
+        
+        if days < 1:
+            raise HTTPException(status_code=400, detail="休息天数必须大于0")
+        
+        game_state.player_team.rest(days)
+        game_state.advance_time(days * game_state.hours_per_day)
+        
+        # 同步旧的状态变量
+        app.state.elapsed_hours = game_state.elapsed_hours
+        
+        return {
+            "status": "ok",
+            "message": f"队伍休息了 {days} 天",
+            "current_day": game_state.get_current_day(),
+            "current_hour": game_state.get_current_hour(),
+            "team_morale": game_state.player_team.morale,
+        }
 
     # --- 玩家移动接口 ---
 

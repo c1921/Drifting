@@ -1,0 +1,98 @@
+{
+  "desert_trader": {
+    "name_pool": ["Sahir", "Laleh", "Bahri"],
+    "gender": "male",
+    "role": "merchant",
+    "origin": "Shifting Sands",
+    "traits": ["greedy", "diligent"],
+    "attributes_override": {
+      "charisma": 9,
+      "intelligence": 8
+    },
+    "skills_override": {
+      "trading": 8,
+      "negotiation": 7
+    },
+    "notes": "Seasoned merchant who specializes in rare desert spices."
+  },
+  "frontier_guard": {
+    "name_pool": ["Kara", "Dorin", "Thea"],
+    "gender": "female",
+    "role": "guard",
+    "origin": "Northern Frontier",
+    "traits": ["brave", "stoic"],
+    "attributes_override": {
+      "strength": 9,
+      "endurance": 9
+    },
+    "skills_override": {
+      "combat": 8,
+      "navigation": 5
+    },
+    "notes": "Elite defender assigned to border caravans."
+  },
+  "itinerant_healer": {
+    "name_pool": ["Mira", "Talren", "Feyra"],
+    "gender": "unknown",
+    "role": "healer",
+    "origin": "Sunset Caravan",
+    "traits": ["kind", "loyal"],
+    "attributes_override": {
+      "intelligence": 9,
+      "charisma": 7
+    },
+    "skills_override": {
+      "medicine": 9,
+      "negotiation": 4
+    },
+    "notes": "Wanders between settlements offering aid and herbal remedies."
+  },
+  "city_schemer": {
+    "name_pool": ["Velos", "Iria", "Markel"],
+    "gender": "unknown",
+    "role": "traveler",
+    "origin": "Harbor of Myria",
+    "traits": ["schemer", "selfish"],
+    "attributes_override": {
+      "intelligence": 8,
+      "charisma": 8
+    },
+    "skills_override": {
+      "trading": 5,
+      "negotiation": 6
+    },
+    "notes": "Political opportunist who seeks leverage in any settlement."
+  },
+  "curious_scout": {
+    "name_pool": ["Ruyan", "Elira", "Solan"],
+    "gender": "unknown",
+    "role": "scout",
+    "origin": "Unknown",
+    "traits": ["curious", "brave"],
+    "attributes_override": {
+      "perception": 9,
+      "endurance": 8
+    },
+    "skills_override": {
+      "navigation": 9,
+      "combat": 5
+    },
+    "notes": "Explores new routes and reports back with detailed maps."
+  },
+  "port_storyteller": {
+    "name_pool": ["Lyra", "Hassan", "Evel"],
+    "gender": "unknown",
+    "role": "traveler",
+    "origin": "Harbor of Myria",
+    "traits": ["romantic", "kind"],
+    "attributes_override": {
+      "charisma": 9,
+      "intelligence": 7
+    },
+    "skills_override": {
+      "negotiation": 6,
+      "trading": 4
+    },
+    "notes": "Performs tales at ports, forging social bonds across factions."
+  }
+}

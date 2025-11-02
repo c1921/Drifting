@@ -181,6 +181,8 @@ onBeforeUnmount(() => {
   cancelSimulation()
 })
 
+defineExpose({ loadPlayer, loadTime })
+
 const nodes = computed(() => {
   if (!graph.value) return [] as CityNode[]
   return Object.values(graph.value.nodes)

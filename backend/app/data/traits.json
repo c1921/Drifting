@@ -1,0 +1,133 @@
+{
+  "brave": {
+    "desc": "勇敢无畏，面对危险毫不退缩。",
+    "effects": {
+      "morale": 10,
+      "fear": -10
+    },
+    "tags": [
+      "positive",
+      "combat"
+    ]
+  },
+  "coward": {
+    "desc": "胆小易惧，倾向逃避冲突。",
+    "effects": {
+      "morale": -10,
+      "fear": 15
+    },
+    "tags": [
+      "negative",
+      "personality"
+    ]
+  },
+  "greedy": {
+    "desc": "对财富有着强烈的欲望。",
+    "effects": {
+      "trading_bonus": 1,
+      "loyalty": -10
+    },
+    "tags": [
+      "neutral",
+      "economy"
+    ]
+  },
+  "kind": {
+    "desc": "乐于助人，富有同情心。",
+    "effects": {
+      "relationship_gain": 5,
+      "fear": -5
+    },
+    "tags": [
+      "positive",
+      "social"
+    ]
+  },
+  "loyal": {
+    "desc": "忠诚可靠，不轻易背叛盟友。",
+    "effects": {
+      "loyalty": 20,
+      "morale": 5
+    },
+    "tags": [
+      "positive",
+      "relationship"
+    ]
+  },
+  "selfish": {
+    "desc": "自私自利，只在意个人利益。",
+    "effects": {
+      "relationship_gain": -5,
+      "morale": 5
+    },
+    "tags": [
+      "negative",
+      "personality"
+    ]
+  },
+  "curious": {
+    "desc": "热衷探索未知世界。",
+    "effects": {
+      "navigation_bonus": 1,
+      "fear": -5
+    },
+    "tags": [
+      "positive",
+      "exploration"
+    ]
+  },
+  "lazy": {
+    "desc": "行动迟缓，不喜欢体力劳动。",
+    "effects": {
+      "endurance": -1,
+      "fatigue_gain": 10
+    },
+    "tags": [
+      "negative",
+      "work"
+    ]
+  },
+  "diligent": {
+    "desc": "勤奋努力，愿意承担额外工作。",
+    "effects": {
+      "endurance": 1,
+      "morale": 5
+    },
+    "tags": [
+      "positive",
+      "work"
+    ]
+  },
+  "schemer": {
+    "desc": "善于谋划但难以信任。",
+    "effects": {
+      "intelligence": 1,
+      "loyalty": -10
+    },
+    "tags": [
+      "neutral",
+      "social"
+    ]
+  },
+  "romantic": {
+    "desc": "感情丰富，容易陷入恋爱。",
+    "effects": {
+      "charisma": 1
+    },
+    "tags": [
+      "neutral",
+      "relationship"
+    ]
+  },
+  "stoic": {
+    "desc": "冷静理智，不易动摇。",
+    "effects": {
+      "fear": -10,
+      "happiness": -5
+    },
+    "tags": [
+      "positive",
+      "mental"
+    ]
+  }
+}

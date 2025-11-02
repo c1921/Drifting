@@ -11,6 +11,11 @@ interface CityNode {
   neighbors: string[]
 }
 interface Graph { nodes: Record<string, CityNode> }
+interface TimeStatus {
+  day: number
+  hour: number
+  total_hours: number
+}
 
 const loading = ref(true)
 const error = ref<string>('')
@@ -19,6 +24,8 @@ const selected = ref<string | null>(null)
 const showDistances = ref(false)
 const moveMode = ref(false)
 const player = ref<string | null>(null)
+const timeState = ref<TimeStatus | null>(null)
+const lastTravelHours = ref<number | null>(null)
 
 async function load() {
   loading.value = true
@@ -40,14 +47,31 @@ async function loadPlayer() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     player.value = data.location as string
+    if (data.time) {
+      timeState.value = data.time as TimeStatus
+    }
   } catch (e: any) {
     // 不阻塞主流程
+  }
+}
+
+async function loadTime() {
+  try {
+    const res = await fetch('/api/time')
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    timeState.value = data as TimeStatus
+  } catch (e: any) {
+    // ignore standalone time errors
   }
 }
 
 onMounted(async () => {
   await load()
   await loadPlayer()
+  if (!timeState.value) {
+    await loadTime()
+  }
 })
 
 const nodes = computed(() => {
@@ -111,6 +135,19 @@ function colorOf(terrain: Terrain): string {
   }
 }
 
+const timeLabel = computed(() => {
+  const t = timeState.value
+  if (!t) return '时间未知'
+  const hourText = t.hour % 1 === 0 ? t.hour.toFixed(0) : t.hour.toFixed(1)
+  return `第 ${t.day} 天 · ${hourText} 小时`
+})
+
+const lastTravelLabel = computed(() => {
+  if (lastTravelHours.value == null) return ''
+  const hours = lastTravelHours.value
+  return `上次行程耗时 ${hours.toFixed(2)} 小时`
+})
+
 function selectNode(name: string) {
   selected.value = name
 }
@@ -140,6 +177,7 @@ function canMoveTo(n: CityNode): boolean {
 
 async function moveTo(name: string) {
   try {
+    const before = timeState.value?.total_hours ?? null
     const res = await fetch('/api/player/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -152,6 +190,15 @@ async function moveTo(name: string) {
     const data = await res.json()
     player.value = data.location as string
     selected.value = data.location as string
+    if (data.time) {
+      timeState.value = data.time as TimeStatus
+      if (before != null && typeof data.time.total_hours === 'number') {
+        const diff = data.time.total_hours - before
+        lastTravelHours.value = diff > 0 ? diff : 0
+      } else {
+        lastTravelHours.value = null
+      }
+    }
   } catch (e: any) {
     error.value = e?.message ?? '移动失败'
   }
@@ -165,6 +212,8 @@ async function moveTo(name: string) {
       <button class="reload" @click="load" :disabled="loading">{{ loading ? '加载中...' : '刷新' }}</button>
       <button @click="showDistances = !showDistances">{{ showDistances ? '隐藏距离' : '显示距离' }}</button>
       <button @click="moveMode = !moveMode">{{ moveMode ? '关闭移动模式' : '开启移动模式' }}</button>
+      <span class="time">{{ timeLabel }}</span>
+      <span v-if="lastTravelLabel" class="last-travel">{{ lastTravelLabel }}</span>
       <span v-if="error" class="error">{{ error }}</span>
     </div>
 
@@ -247,6 +296,7 @@ async function moveTo(name: string) {
 
     <div v-if="selected" class="info">
       选中：<strong>{{ selected }}</strong>
+      <span v-if="lastTravelLabel" class="info-travel">{{ lastTravelLabel }}</span>
     </div>
   </div>
   
@@ -256,8 +306,11 @@ async function moveTo(name: string) {
 .map-panel { border: 1px solid #ddd; border-radius: 8px; padding: 12px; background: #fff; }
 .header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 .reload { margin-left: auto; }
+.time { margin-left: 8px; color: #333; font-size: 0.95rem; white-space: nowrap; }
+.last-travel { color: #555; font-size: 0.85rem; white-space: nowrap; }
 .error { color: #d33; margin-left: 8px; }
 .map-canvas { width: 100%; height: 420px; background: #f7f7f7; border: 1px solid #eee; border-radius: 6px; }
 .info { margin-top: 8px; color: #444; }
+.info-travel { margin-left: 12px; font-size: 0.9rem; color: #666; }
 </style>
 

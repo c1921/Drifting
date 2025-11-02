@@ -20,6 +20,16 @@ from pydantic import BaseModel
 from backend.app.data.world_map import load_world_graph
 from backend.app.models.map import Graph
 
+HOURS_PER_DAY = 24
+DEFAULT_MOVE_SPEED = 1.0
+DEFAULT_TIME_COEFFICIENT = 1.0
+
+
+class TimeStatus(BaseModel):
+    day: int
+    hour: float
+    total_hours: float
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Drifting Backend", version="0.1.0")
 
@@ -73,19 +83,40 @@ def create_app() -> FastAPI:
 
     class PlayerStatus(BaseModel):
         location: str
+        time: TimeStatus
 
     class MoveRequest(BaseModel):
         to: str
+        speed: float = DEFAULT_MOVE_SPEED
+        coefficient: float = DEFAULT_TIME_COEFFICIENT
 
     # 简单的内存中保存玩家位置（即用户的当前位置）
     # 默认起点为地图中的 “Capital”
     # 注意：在实际环境中应改为使用会话或数据库进行持久化存储
     app.state.player_location = "Capital"
+    app.state.elapsed_hours = 0.0
+
+    def _current_time_status() -> TimeStatus:
+        total = getattr(app.state, "elapsed_hours", 0.0)
+        day = int(total // HOURS_PER_DAY) + 1
+        hour = total % HOURS_PER_DAY
+        return TimeStatus(day=day, hour=hour, total_hours=total)
+
+    def _advance_time(hours: float) -> TimeStatus:
+        if hours <= 0:
+            return _current_time_status()
+        app.state.elapsed_hours = getattr(app.state, "elapsed_hours", 0.0) + hours
+        return _current_time_status()
 
     @app.get("/api/player", response_model=PlayerStatus)
     async def get_player() -> PlayerStatus:
         """获取当前玩家位置"""
-        return PlayerStatus(location=app.state.player_location)
+        return PlayerStatus(location=app.state.player_location, time=_current_time_status())
+
+    @app.get("/api/time", response_model=TimeStatus)
+    async def get_time() -> TimeStatus:
+        """获取游戏时间信息"""
+        return _current_time_status()
 
     @app.post("/api/player/move", response_model=PlayerStatus)
     async def move_player(
@@ -99,25 +130,46 @@ def create_app() -> FastAPI:
 
         # 兼容多种提交格式：JSON({to}), 原始 JSON 或 body 字段 "to"
         target: str | None = None
+        speed = DEFAULT_MOVE_SPEED
+        coefficient = DEFAULT_TIME_COEFFICIENT
         if req and getattr(req, "to", None):
             target = req.to
+            speed = getattr(req, "speed", DEFAULT_MOVE_SPEED)
+            coefficient = getattr(req, "coefficient", DEFAULT_TIME_COEFFICIENT)
         elif to:
             target = to
         else:
+            data: Any | None = None
             try:
                 data = await request.json()
-                if isinstance(data, dict):
-                    target = data.get("to")
             except Exception:
-                pass
+                data = None
+            if isinstance(data, dict):
+                target = data.get("to")
+                raw_speed = data.get("speed")
+                raw_coefficient = data.get("coefficient")
+                if raw_speed is not None:
+                    try:
+                        speed = float(raw_speed)
+                    except (TypeError, ValueError):
+                        raise HTTPException(status_code=400, detail="速度格式错误")
+                if raw_coefficient is not None:
+                    try:
+                        coefficient = float(raw_coefficient)
+                    except (TypeError, ValueError):
+                        raise HTTPException(status_code=400, detail="系数格式错误")
 
         if not target:
-            raise HTTPException(status_code=400, detail="缺少目标地点字段: to")
+            raise HTTPException(status_code=400, detail="缺少目标字段: to")
+
+        if speed <= 0 or coefficient <= 0:
+            raise HTTPException(status_code=400, detail="速度和系数必须大于 0")
 
         if target not in graph.nodes:
             raise HTTPException(status_code=400, detail=f"未知地点: {target}")
 
         # 允许移动到当前位置，否则必须为相邻节点
+        time_state: TimeStatus | None = None
         if target != cur:
             node = graph.nodes.get(cur)
             if not node:
@@ -127,8 +179,13 @@ def create_app() -> FastAPI:
                 if target not in node.neighbors:
                     raise HTTPException(status_code=400, detail=f"{target} 不是 {cur} 的相邻地点，无法移动")
                 app.state.player_location = target
+                distance = graph.distance_between(cur, target)
+                time_state = _advance_time(distance * speed * coefficient)
 
-        return PlayerStatus(location=app.state.player_location)
+        if time_state is None:
+            time_state = _current_time_status()
+
+        return PlayerStatus(location=app.state.player_location, time=time_state)
 
     # 如果前端打包文件存在，则在生产环境中提供静态文件服务
     dist_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"

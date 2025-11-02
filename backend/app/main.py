@@ -5,6 +5,11 @@ from typing import Any, Dict
 import sys
 import os
 
+# 确保从任意目录直接运行时可导入 backend 包
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,13 +19,6 @@ from pydantic import BaseModel
 
 from backend.app.data.world_map import load_world_graph
 from backend.app.models.map import Graph
-
-
-# 允许脚本直接运行：将项目根目录加入 sys.path
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
 
 def create_app() -> FastAPI:
     app = FastAPI(title="Drifting Backend", version="0.1.0")

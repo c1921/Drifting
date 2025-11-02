@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref } from 'vue'
 
 type Terrain = 'plains' | 'desert' | 'mountain' | 'forest' | 'hills' | 'swamp' | 'water'
 
@@ -26,6 +26,21 @@ const moveMode = ref(false)
 const player = ref<string | null>(null)
 const timeState = ref<TimeStatus | null>(null)
 const lastTravelHours = ref<number | null>(null)
+const displayTime = ref<TimeStatus | null>(null)
+const isSimulating = ref(false)
+const simulatedPosition = ref<Coordinate | null>(null)
+
+const HOURS_PER_DAY = 24
+const REALTIME_PER_GAME_HOUR = 1000
+
+let simulationFrame: number | null = null
+let simulationStartTotal = 0
+let simulationTargetTotal = 0
+let simulationDurationMs = 0
+let simulationStartMs = 0
+let simulationFinalTime: TimeStatus | null = null
+let simulationStartCoord: Coordinate | null = null
+let simulationTargetCoord: Coordinate | null = null
 
 async function load() {
   loading.value = true
@@ -49,6 +64,7 @@ async function loadPlayer() {
     player.value = data.location as string
     if (data.time) {
       timeState.value = data.time as TimeStatus
+      syncDisplayTime(timeState.value)
     }
   } catch (e: any) {
     // 不阻塞主流程
@@ -61,9 +77,96 @@ async function loadTime() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
     timeState.value = data as TimeStatus
+    syncDisplayTime(timeState.value)
   } catch (e: any) {
     // ignore standalone time errors
   }
+}
+
+function cloneTime(t: TimeStatus): TimeStatus {
+  return { day: t.day, hour: t.hour, total_hours: t.total_hours }
+}
+
+function cloneCoord(c: Coordinate): Coordinate {
+  return { x: c.x, y: c.y }
+}
+
+function deriveTimeStatus(totalHours: number): TimeStatus {
+  const safeTotal = totalHours < 0 ? 0 : totalHours
+  const dayIndex = Math.floor(safeTotal / HOURS_PER_DAY)
+  const hour = safeTotal - dayIndex * HOURS_PER_DAY
+  return { day: dayIndex + 1, hour, total_hours: safeTotal }
+}
+
+function syncDisplayTime(source: TimeStatus | null) {
+  if (isSimulating.value) return
+  displayTime.value = source ? cloneTime(source) : null
+}
+
+function cancelSimulation() {
+  if (simulationFrame != null) {
+    cancelAnimationFrame(simulationFrame)
+    simulationFrame = null
+  }
+  isSimulating.value = false
+  simulationFinalTime = null
+  simulationStartCoord = null
+  simulationTargetCoord = null
+  simulatedPosition.value = null
+}
+
+function finishSimulation() {
+  if (simulationFinalTime) {
+    displayTime.value = cloneTime(simulationFinalTime)
+  } else if (timeState.value) {
+    displayTime.value = cloneTime(timeState.value)
+  }
+  cancelSimulation()
+  simulationFinalTime = null
+  error.value = ''
+  void loadPlayer()
+}
+
+function startSimulation(start: TimeStatus, end: TimeStatus, durationHours: number, startCoord?: Coordinate | null, endCoord?: Coordinate | null) {
+  cancelSimulation()
+  if (durationHours <= 0) {
+    displayTime.value = cloneTime(end)
+    return
+  }
+
+  isSimulating.value = true
+  simulationStartTotal = start.total_hours
+  simulationTargetTotal = end.total_hours
+  simulationDurationMs = Math.max(durationHours * REALTIME_PER_GAME_HOUR, 0)
+  simulationStartMs = performance.now()
+  simulationFinalTime = cloneTime(end)
+  simulationStartCoord = startCoord ? cloneCoord(startCoord) : null
+  simulationTargetCoord = endCoord ? cloneCoord(endCoord) : null
+  simulatedPosition.value = simulationStartCoord ? cloneCoord(simulationStartCoord) : null
+  displayTime.value = cloneTime(start)
+
+  const step = (now: number) => {
+    if (!isSimulating.value) return
+    const elapsed = now - simulationStartMs
+    const ratio = simulationDurationMs <= 0 ? 1 : Math.min(elapsed / simulationDurationMs, 1)
+    const current = simulationStartTotal + (simulationTargetTotal - simulationStartTotal) * ratio
+    displayTime.value = deriveTimeStatus(current)
+    if (simulationStartCoord && simulationTargetCoord) {
+      const dx = simulationTargetCoord.x - simulationStartCoord.x
+      const dy = simulationTargetCoord.y - simulationStartCoord.y
+      simulatedPosition.value = {
+        x: simulationStartCoord.x + dx * ratio,
+        y: simulationStartCoord.y + dy * ratio,
+      }
+    }
+    if (ratio >= 1) {
+      finishSimulation()
+    } else {
+      simulationFrame = requestAnimationFrame(step)
+    }
+  }
+
+  simulationFrame = requestAnimationFrame(step)
 }
 
 onMounted(async () => {
@@ -72,6 +175,10 @@ onMounted(async () => {
   if (!timeState.value) {
     await loadTime()
   }
+})
+
+onBeforeUnmount(() => {
+  cancelSimulation()
 })
 
 const nodes = computed(() => {
@@ -136,10 +243,12 @@ function colorOf(terrain: Terrain): string {
 }
 
 const timeLabel = computed(() => {
-  const t = timeState.value
+  const t = displayTime.value ?? timeState.value
   if (!t) return '时间未知'
-  const hourText = t.hour % 1 === 0 ? t.hour.toFixed(0) : t.hour.toFixed(1)
-  return `第 ${t.day} 天 · ${hourText} 小时`
+  const hourRounded = Math.round(t.hour * 10) / 10
+  const hourText = Number.isInteger(hourRounded) ? hourRounded.toFixed(0) : hourRounded.toFixed(1)
+  const label = `第${t.day} 天 · ${hourText} 小时`
+  return isSimulating.value ? `${label}（行进中）` : label
 })
 
 const lastTravelLabel = computed(() => {
@@ -169,6 +278,12 @@ const playerCity = computed(() => {
   return graph.value.nodes[player.value] ?? null
 })
 
+const playerMarkerPoint = computed(() => {
+  const coord = simulatedPosition.value ?? playerCity.value?.coord ?? null
+  if (!coord) return null
+  return projector.value(coord)
+})
+
 function canMoveTo(n: CityNode): boolean {
   const p = playerCity.value
   if (!p) return false
@@ -176,8 +291,17 @@ function canMoveTo(n: CityNode): boolean {
 }
 
 async function moveTo(name: string) {
+  if (isSimulating.value) {
+    error.value = '正在模拟行程，请稍候完成后再尝试'
+    return
+  }
   try {
-    const before = timeState.value?.total_hours ?? null
+    error.value = ''
+    const originLocation = player.value
+    const originCoord = originLocation && graph.value
+      ? graph.value.nodes[originLocation]?.coord ?? null
+      : null
+    const before = timeState.value ? cloneTime(timeState.value) : null
     const res = await fetch('/api/player/move', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -190,17 +314,36 @@ async function moveTo(name: string) {
     const data = await res.json()
     player.value = data.location as string
     selected.value = data.location as string
+    const destinationCoord = graph.value
+      ? graph.value.nodes[data.location]?.coord ?? null
+      : null
+    const rawDuration = typeof data.move_duration_hours === 'number' && Number.isFinite(data.move_duration_hours)
+      ? data.move_duration_hours
+      : null
     if (data.time) {
       timeState.value = data.time as TimeStatus
-      if (before != null && typeof data.time.total_hours === 'number') {
-        const diff = data.time.total_hours - before
-        lastTravelHours.value = diff > 0 ? diff : 0
-      } else {
-        lastTravelHours.value = null
+    }
+    if (rawDuration != null && rawDuration > 0 && before && timeState.value) {
+      lastTravelHours.value = rawDuration
+      const startCoordForSimulation = originCoord && destinationCoord ? originCoord : null
+      const endCoordForSimulation = originCoord && destinationCoord ? destinationCoord : null
+      startSimulation(
+        before,
+        cloneTime(timeState.value),
+        rawDuration,
+        startCoordForSimulation,
+        endCoordForSimulation,
+      )
+    } else {
+      lastTravelHours.value = rawDuration != null ? Math.max(rawDuration, 0) : null
+      syncDisplayTime(timeState.value)
+      if (rawDuration != null && rawDuration > 0) {
+        void loadPlayer()
       }
     }
   } catch (e: any) {
     error.value = e?.message ?? '移动失败'
+    cancelSimulation()
   }
 }
 </script>
@@ -276,18 +419,18 @@ async function moveTo(name: string) {
       </g>
 
       <!-- 玩家位置标记 -->
-      <g v-if="playerCity" class="player">
+      <g v-if="playerMarkerPoint" class="player">
         <circle
-          :cx="projector(playerCity.coord).x"
-          :cy="projector(playerCity.coord).y"
+          :cx="playerMarkerPoint.x"
+          :cy="playerMarkerPoint.y"
           r="10"
           fill="none"
           stroke="#ff3b30"
           stroke-width="3"
         />
         <circle
-          :cx="projector(playerCity.coord).x"
-          :cy="projector(playerCity.coord).y"
+          :cx="playerMarkerPoint.x"
+          :cy="playerMarkerPoint.y"
           r="3"
           fill="#ff3b30"
         />

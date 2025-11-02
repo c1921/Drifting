@@ -84,6 +84,7 @@ def create_app() -> FastAPI:
     class PlayerStatus(BaseModel):
         location: str
         time: TimeStatus
+        move_duration_hours: float | None = None
 
     class MoveRequest(BaseModel):
         to: str
@@ -170,6 +171,7 @@ def create_app() -> FastAPI:
 
         # 允许移动到当前位置，否则必须为相邻节点
         time_state: TimeStatus | None = None
+        spent_hours = 0.0
         if target != cur:
             node = graph.nodes.get(cur)
             if not node:
@@ -180,12 +182,17 @@ def create_app() -> FastAPI:
                     raise HTTPException(status_code=400, detail=f"{target} 不是 {cur} 的相邻地点，无法移动")
                 app.state.player_location = target
                 distance = graph.distance_between(cur, target)
-                time_state = _advance_time(distance * speed * coefficient)
+                spent_hours = distance * speed * coefficient
+                time_state = _advance_time(spent_hours)
 
         if time_state is None:
             time_state = _current_time_status()
 
-        return PlayerStatus(location=app.state.player_location, time=time_state)
+        return PlayerStatus(
+            location=app.state.player_location,
+            time=time_state,
+            move_duration_hours=spent_hours,
+        )
 
     # 如果前端打包文件存在，则在生产环境中提供静态文件服务
     dist_dir = Path(__file__).resolve().parents[2] / "frontend" / "dist"

@@ -18,8 +18,10 @@ import {
   IconStar,
   IconUser,
   IconUsers,
+  IconStar as IconTrait,
 } from "@tabler/icons-vue"
 import { computed } from "vue"
+import type { RoleData } from "@/types/role"
 import {
   Tooltip,
   TooltipContent,
@@ -27,62 +29,28 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 
-// ── Types ──────────────────────────────────────────
-interface CharacterAttribute {
-  key: string
-  label: string
-  abbreviation: string
-  value: number
-  icon: any
-}
-
-interface CharacterTrait {
-  name: string
-  icon: any
-  description: string
-}
-
-interface Character {
-  name: string
-  gender: string
-  age: number
-  attributes: CharacterAttribute[]
-  traits: CharacterTrait[]
-}
-
-// ── Mock data ───────────────────────────────────────
-const character: Character = {
-  name: "Elara Shadowveil",
-  gender: "Female",
-  age: 27,
-  attributes: [
-    { key: "strength", label: "Strength", abbreviation: "STR", value: 16, icon: IconBarbell },
-    { key: "dexterity", label: "Dexterity", abbreviation: "DEX", value: 14, icon: IconRun },
-    { key: "constitution", label: "Constitution", abbreviation: "CON", value: 15, icon: IconHeart },
-    { key: "intelligence", label: "Intelligence", abbreviation: "INT", value: 12, icon: IconBrain },
-    { key: "charisma", label: "Charisma", abbreviation: "CHA", value: 17, icon: IconStar },
-  ],
-  traits: [
-    { name: "Tenacity", icon: IconShield, description: "Unwavering willpower in the face of adversity" },
-    { name: "Alertness", icon: IconEye, description: "Keen perception; difficult to catch off guard" },
-    { name: "Leadership", icon: IconUsers, description: "Born leader who inspires allies" },
-    { name: "Luck", icon: IconClover, description: "Fortune favors the bold — lucky breaks come often" },
-    { name: "Iron Stomach", icon: IconFlask, description: "Extreme resistance to toxins and harmful substances" },
-    { name: "Night Vision", icon: IconMoon, description: "Can see clearly even in total darkness" },
-    { name: "Fleet-Footed", icon: IconShoe, description: "Moves significantly faster than an ordinary person" },
-    { name: "Quick Hands", icon: IconHandThreeFingers, description: "Nimble fingers, skilled at delicate tasks" },
-    { name: "Hardy", icon: IconBone, description: "Exceptional physique and remarkable recovery" },
-  ],
-}
+// ── Props ──────────────────────────────────────────
+const props = defineProps<{
+  role: RoleData | null
+}>()
 
 // ── Computed ───────────────────────────────────────
 const genderIcon = computed(() =>
-  character.gender === "Male" ? IconGenderMale : IconGenderFemale,
+  props.role?.gender === "Male" ? IconGenderMale : IconGenderFemale,
 )
+
+// 属性展示配置
+const attributeConfig = [
+  { key: "strength" as const, label: "Strength", abbreviation: "STR", icon: IconBarbell },
+  { key: "dexterity" as const, label: "Dexterity", abbreviation: "DEX", icon: IconRun },
+  { key: "constitution" as const, label: "Constitution", abbreviation: "CON", icon: IconHeart },
+  { key: "intelligence" as const, label: "Intelligence", abbreviation: "INT", icon: IconBrain },
+  { key: "charisma" as const, label: "Charisma", abbreviation: "CHA", icon: IconStar },
+]
 </script>
 
 <template>
-  <div class="flex flex-1 flex-col gap-6">
+  <div v-if="role" class="flex flex-1 flex-col gap-6">
     <!-- ── Basic Info ──────────────────────────── -->
     <div class="flex items-center gap-5">
       <!-- Avatar placeholder -->
@@ -95,16 +63,16 @@ const genderIcon = computed(() =>
       <!-- Name / Gender / Age -->
       <div class="flex flex-col gap-1.5">
         <h2 class="text-2xl font-semibold tracking-tight">
-          {{ character.name }}
+          {{ role.name }}
         </h2>
         <div class="flex items-center gap-4 text-sm text-muted-foreground">
           <span class="inline-flex items-center gap-1.5">
             <component :is="genderIcon" class="size-4" />
-            {{ character.gender }}
+            {{ role.gender }}
           </span>
           <span class="inline-flex items-center gap-1.5">
             <IconCalendar class="size-4" />
-            {{ character.age }} yrs old
+            {{ role.age }} yrs old
           </span>
         </div>
       </div>
@@ -115,12 +83,12 @@ const genderIcon = computed(() =>
       <h3 class="mb-3 text-sm font-medium text-muted-foreground">Attributes</h3>
       <div class="flex flex-col gap-1">
         <div
-          v-for="attr in character.attributes"
+          v-for="attr in attributeConfig"
           :key="attr.key"
           class="flex items-center gap-2 px-4 py-2.5"
         >
           <component :is="attr.icon" class="" />
-          <span class="text-base font-bold tabular-nums">{{ attr.value }}</span>
+          <span class="text-base font-bold tabular-nums">{{ role.attributes[attr.key] }}</span>
         </div>
       </div>
     </section>
@@ -133,14 +101,14 @@ const genderIcon = computed(() =>
           class="grid gap-2 grid-cols-[repeat(auto-fill,minmax(80px,1fr))]"
         >
           <Tooltip
-            v-for="trait in character.traits"
+            v-for="trait in role.traits"
             :key="trait.name"
           >
             <TooltipTrigger as-child>
               <div
                 class="bg-muted/50 flex aspect-square cursor-default flex-col items-center justify-center gap-2 rounded-xl transition-colors hover:bg-muted"
               >
-                <component :is="trait.icon" class="size-5" />
+                <IconTrait class="size-5" />
                 <span class="text-xs">{{ trait.name }}</span>
               </div>
             </TooltipTrigger>
@@ -151,5 +119,14 @@ const genderIcon = computed(() =>
         </div>
       </TooltipProvider>
     </section>
+  </div>
+
+  <!-- 无角色时显示空状态 -->
+  <div v-else class="flex flex-1 flex-col items-center justify-center gap-4 p-12">
+    <IconUser class="size-16 text-muted-foreground/30" />
+    <p class="text-lg font-medium text-muted-foreground">No role selected</p>
+    <p class="text-sm text-muted-foreground/70 text-center">
+      Generate a role in the "Create Role" tab or select one from the list.
+    </p>
   </div>
 </template>

@@ -7,6 +7,7 @@ export const containerClass = "w-full h-full"
 
 <script setup lang="ts">
 import AppSidebar from "@/components/AppSidebar.vue"
+import ModeToggle from "@/components/ModeToggle.vue"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -45,6 +46,9 @@ import {
               </BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
+          <div class="ml-auto">
+            <ModeToggle />
+          </div>
         </div>
       </header>
       <div class="flex flex-1 flex-col gap-4 p-4 pt-0">

@@ -57,7 +57,7 @@ import {
           <div class="bg-muted/50 aspect-video rounded-xl" />
           <div class="bg-muted/50 aspect-video rounded-xl" />
         </div>
-        <div class="bg-muted/50 min-h-[100vh] flex-1 rounded-xl md:min-h-min" />
+        <div class="bg-muted/50 min-h-screen flex-1 rounded-xl md:min-h-min" />
       </div>
     </SidebarInset>
   </SidebarProvider>

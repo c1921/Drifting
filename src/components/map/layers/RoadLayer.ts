@@ -1,8 +1,11 @@
 import { Container, Graphics } from "pixi.js"
-import { roads } from "../data/mapData"
 import type { ThemeColors } from "../utils/themeUtils"
+import type { RoadData } from "@/types/map"
 
-export function createRoadLayer(colors: ThemeColors): Container {
+export function createRoadLayer(
+  roads: RoadData[],
+  colors: ThemeColors,
+): Container {
   const layer = new Container()
 
   for (const road of roads) {
@@ -20,7 +23,6 @@ export function createRoadLayer(colors: ThemeColors): Container {
     const last = pts.length - 2
     g.lineTo(pts[last], pts[last + 1])
 
-    // Dashed line effect: light stroke
     g.stroke({
       width: 1.5,
       color: colors.border,

@@ -1,6 +1,7 @@
 pub mod components;
 pub mod resources;
 pub mod systems;
+pub mod map;
 
 use bevy::prelude::*;
 use rand::Rng;
@@ -61,6 +62,7 @@ pub fn init_world() -> World {
     world.insert_resource(TraitPool::default());
     world.insert_resource(ItemIdCounter::default());
     world.insert_resource(ItemCatalog::default());
+    world.insert_resource(MapResource::default());
 
     world
 }
@@ -301,4 +303,23 @@ pub fn list_items(world: &mut World) -> Vec<ItemData> {
     }
 
     items
+}
+
+// ── 地图相关 ──────────────────────────────────────
+
+/// Bevy Resource 包装地图数据
+#[derive(Resource)]
+pub struct MapResource(pub Option<map::MapData>);
+
+impl Default for MapResource {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+/// 生成地图并存入 World Resource
+pub fn store_map(world: &mut World, seed: u32) -> map::MapData {
+    let data = map::generate_map(seed);
+    world.insert_resource(MapResource(Some(data.clone())));
+    data
 }

@@ -3,7 +3,9 @@ import { createContourLayer } from "./layers/ContourLayer"
 import { createRoadLayer } from "./layers/RoadLayer"
 import { createLocationLayer } from "./layers/LocationLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
-import type { LocationData } from "./data/mapData"
+import { extractContours } from "@/map/contourExtractor"
+import { getMap } from "@/api/map"
+import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
@@ -25,13 +27,27 @@ export async function createMap(
 
   container.appendChild(app.canvas as HTMLCanvasElement)
 
+  // ── 从后端获取地图数据 ──────────────────────────
+  let mapData: import("@/types/map").MapData | null = null
+  try {
+    mapData = await getMap()
+  } catch (e) {
+    console.error("Failed to fetch map data:", e)
+  }
+
   // ── Build layers ────────────────────────────────
   function buildWorld(): Container {
     const colors = getThemeColors()
     const world = new Container()
-    world.addChild(createContourLayer(colors))
-    world.addChild(createRoadLayer(colors))
-    world.addChild(createLocationLayer(colors, options?.onLocationSelect))
+
+    if (mapData) {
+      // 从高度网格提取等高线
+      const contours = extractContours(mapData.heightmap, mapData.width, mapData.height)
+      world.addChild(createContourLayer(contours, colors))
+      world.addChild(createRoadLayer(mapData.roads, colors))
+      world.addChild(createLocationLayer(mapData.locations, colors, options?.onLocationSelect))
+    }
+
     return world
   }
 

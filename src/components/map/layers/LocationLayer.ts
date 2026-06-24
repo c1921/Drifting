@@ -1,8 +1,9 @@
 import { Container, Graphics, Text } from "pixi.js"
-import { locations, type LocationData } from "../data/mapData"
 import type { ThemeColors } from "../utils/themeUtils"
+import type { LocationData } from "@/types/map"
 
 export function createLocationLayer(
+  locations: LocationData[],
   colors: ThemeColors,
   onSelect?: (loc: LocationData) => void,
 ): Container {

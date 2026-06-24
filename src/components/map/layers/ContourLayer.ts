@@ -1,8 +1,11 @@
 import { Container, Graphics } from "pixi.js"
-import { contours } from "../data/mapData"
 import type { ThemeColors } from "../utils/themeUtils"
+import type { ContourData } from "@/map/contourExtractor"
 
-export function createContourLayer(colors: ThemeColors): Container {
+export function createContourLayer(
+  contours: ContourData[],
+  colors: ThemeColors,
+): Container {
   const layer = new Container()
 
   for (let i = 0; i < contours.length; i++) {
@@ -12,21 +15,21 @@ export function createContourLayer(colors: ThemeColors): Container {
 
     const g = new Graphics()
 
-    // Smooth curve using quadratic bezier
+    // 用直线段绘制等高线（不二次平滑以避免扭曲）
     g.moveTo(pts[0], pts[1])
     for (let j = 2; j < pts.length - 1; j += 2) {
-      const xc = (pts[j] + pts[j + 2]) / 2
-      const yc = (pts[j + 1] + pts[j + 3]) / 2
-      g.quadraticCurveTo(pts[j], pts[j + 1], xc, yc)
+      g.lineTo(pts[j], pts[j + 1])
     }
-    // Close the last segment back to start
-    const last = pts.length - 2
-    g.quadraticCurveTo(pts[last], pts[last + 1], pts[0], pts[1])
-    g.closePath()
 
-    // Faded fill + thin stroke
+    if (c.closed) {
+      g.closePath()
+    }
+
+    // 填充（仅闭合环） + 描边
     const alpha = 0.04 + (i / contours.length) * 0.06
-    g.fill({ color: colors.mutedForeground, alpha })
+    if (c.closed) {
+      g.fill({ color: colors.mutedForeground, alpha })
+    }
     g.stroke({
       width: 0.5 + (i / contours.length) * 0.8,
       color: colors.mutedForeground,

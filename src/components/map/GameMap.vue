@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, useTemplateRef } from "vue"
 import { createMap } from "./MapRenderer"
-import type { LocationData } from "./data/mapData"
+import type { LocationData } from "@/types/map"
 
 const canvasRef = useTemplateRef<HTMLDivElement>("canvasRef")
 let destroyMap: (() => void) | null = null

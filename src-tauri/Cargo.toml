@@ -25,3 +25,4 @@ tauri = { version = "2.11.2", features = [] }
 tauri-plugin-log = "2"
 bevy = { version = "0.19", default-features = false }
 rand = "0.8"
+noise = "0.9"

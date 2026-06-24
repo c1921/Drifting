@@ -6,6 +6,7 @@ import {
   IconInfoCircle,
   IconUserShield,
 } from '@tabler/icons-vue'
+import CharacterDetail from '@/components/CharacterDetail.vue'
 
 const activeTab = ref('list')
 
@@ -62,14 +63,8 @@ const tabs = [
     </div>
 
     <!-- Role Details -->
-    <div v-else-if="activeTab === 'details'" class="flex flex-1 flex-col gap-4">
-      <div class="bg-muted/50 flex flex-1 items-center justify-center rounded-xl p-6">
-        <div class="text-center">
-          <IconInfoCircle class="mx-auto h-12 w-12 text-muted-foreground/50" />
-          <p class="mt-4 text-lg font-medium text-muted-foreground">Role Details</p>
-          <p class="mt-1 text-sm text-muted-foreground/70">Selected role details will be displayed here</p>
-        </div>
-      </div>
+    <div v-else-if="activeTab === 'details'" class="flex flex-1 flex-col">
+      <CharacterDetail />
     </div>
   </div>
 </template>

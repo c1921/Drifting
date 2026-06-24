@@ -27,27 +27,27 @@ const data = {
   navMain: [
     {
       title: "Role",
-      url: "#",
+      url: "/role",
       icon: IconUserShield,
     },
     {
       title: "Items",
-      url: "#",
+      url: "/items",
       icon: IconPackage,
     },
     {
       title: "Events",
-      url: "#",
+      url: "/events",
       icon: IconCalendarEvent,
     },
     {
       title: "Trading",
-      url: "#",
+      url: "/trading",
       icon: IconShoppingCart,
     },
     {
       title: "Map",
-      url: "#",
+      url: "/map",
       icon: IconMap,
     },
   ],

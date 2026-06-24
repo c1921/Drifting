@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import type { Component } from "vue"
-import {
-  IconCalendarEvent,
-  IconMap,
-  IconPackage,
-  IconShoppingCart,
-  IconUserShield,
-} from '@tabler/icons-vue'
+import { useRoute } from 'vue-router'
 import {
   SidebarGroup,
   SidebarGroupLabel,
@@ -22,6 +16,8 @@ defineProps<{
     icon: Component
   }[]
 }>()
+
+const route = useRoute()
 </script>
 
 <template>
@@ -29,11 +25,15 @@ defineProps<{
     <SidebarGroupLabel>Main</SidebarGroupLabel>
     <SidebarMenu>
       <SidebarMenuItem v-for="item in items" :key="item.title">
-        <SidebarMenuButton :tooltip="item.title" as-child>
-          <a :href="item.url">
+        <SidebarMenuButton
+          :tooltip="item.title"
+          :is-active="route.path === item.url"
+          as-child
+        >
+          <RouterLink :to="item.url">
             <component :is="item.icon" />
             <span>{{ item.title }}</span>
-          </a>
+          </RouterLink>
         </SidebarMenuButton>
       </SidebarMenuItem>
     </SidebarMenu>

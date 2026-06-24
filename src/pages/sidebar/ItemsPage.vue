@@ -4,8 +4,8 @@ import {
   IconList,
   IconPlus,
   IconCategory,
-  IconPackage,
 } from '@tabler/icons-vue'
+import ItemList from '@/components/ItemList.vue'
 
 const activeTab = ref('browse')
 
@@ -35,19 +35,8 @@ const tabs = [
     </div>
 
     <!-- Browse Items -->
-    <div v-if="activeTab === 'browse'" class="flex flex-1 flex-col gap-4">
-      <div class="grid auto-rows-min gap-4 md:grid-cols-4">
-        <div
-          v-for="n in 8"
-          :key="n"
-          class="bg-muted/50 flex items-center justify-center rounded-xl p-4 aspect-square"
-        >
-          <div class="text-center">
-            <IconPackage class="mx-auto h-8 w-8 text-muted-foreground/50" />
-            <p class="mt-2 text-sm text-muted-foreground">Item #{{ n }}</p>
-          </div>
-        </div>
-      </div>
+    <div v-if="activeTab === 'browse'" class="flex flex-1 flex-col">
+      <ItemList />
     </div>
 
     <!-- Add Item -->

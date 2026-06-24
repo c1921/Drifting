@@ -154,10 +154,10 @@ fn pixel_to_world(px: u32, py: u32) -> (f64, f64) {
     (wx, wy)
 }
 
-/// 将世界坐标转换为像素坐标
+/// 将世界坐标转换为像素坐标（四舍五入取整）
 fn world_to_pixel(wx: f64, wy: f64) -> (u32, u32) {
-    let px = ((wx - WORLD_MIN) / (WORLD_MAX - WORLD_MIN) * MAP_WIDTH as f64) as u32;
-    let py = ((wy - WORLD_MIN) / (WORLD_MAX - WORLD_MIN) * MAP_HEIGHT as f64) as u32;
+    let px = ((wx - WORLD_MIN) / (WORLD_MAX - WORLD_MIN) * MAP_WIDTH as f64).round() as u32;
+    let py = ((wy - WORLD_MIN) / (WORLD_MAX - WORLD_MIN) * MAP_HEIGHT as f64).round() as u32;
     (px.clamp(0, MAP_WIDTH - 1), py.clamp(0, MAP_HEIGHT - 1))
 }
 
@@ -328,6 +328,7 @@ impl PartialOrd for AStarNode {
 }
 
 /// 在高度图上执行 A* 寻路，返回像素坐标路径
+/// 代价综合考虑距离和高度变化，使道路偏好平坦地形（少上下坡）
 fn a_star_path(
     heights: &[f64],
     start: (u32, u32),
@@ -383,9 +384,9 @@ fn a_star_path(
             let nidx = nv as usize * w + nu as usize;
             let nh = heights[nidx];
 
-            // 代价 = 距离 + 高度变化惩罚 + 绝对高度惩罚
+            // 代价 = 距离 + 高度变化惩罚（尽量少上下坡）
             let dh = (nh - cur_h).abs();
-            let step_cost = BASE_COST[i] + dh * 5.0 + (nh - 0.4).powi(2) * 10.0;
+            let step_cost = BASE_COST[i] + dh * 5.0;
             let tentative_g = cur_g + step_cost;
 
             if tentative_g < g[nidx] {
@@ -471,11 +472,16 @@ fn create_road_segment(a: &LocationData, b: &LocationData, heights: &[f64]) -> R
 
         let simplified = rdp_simplify(&world_path, 3.0);
 
-        let mut points = Vec::with_capacity(simplified.len() * 2);
-        for &(x, y) in &simplified {
+        // 确保首尾点精确等于地点坐标（补偿像素取整误差）
+        let mut points = Vec::with_capacity(simplified.len() * 2 + 4);
+        points.push((a.x * 10.0).round() / 10.0);
+        points.push((a.y * 10.0).round() / 10.0);
+        for &(x, y) in &simplified[1..simplified.len().saturating_sub(1)] {
             points.push((x * 10.0).round() / 10.0);
             points.push((y * 10.0).round() / 10.0);
         }
+        points.push((b.x * 10.0).round() / 10.0);
+        points.push((b.y * 10.0).round() / 10.0);
 
         RoadData { points }
     } else {

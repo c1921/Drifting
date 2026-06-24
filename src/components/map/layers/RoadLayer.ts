@@ -15,7 +15,7 @@ export function createRoadLayer(
     const g = new Graphics()
     g.moveTo(pts[0], pts[1])
 
-    for (let j = 2; j < pts.length - 1; j += 2) {
+    for (let j = 2; j < pts.length - 2; j += 2) {
       const xc = (pts[j] + pts[j + 2]) / 2
       const yc = (pts[j + 1] + pts[j + 3]) / 2
       g.quadraticCurveTo(pts[j], pts[j + 1], xc, yc)

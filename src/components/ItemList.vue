@@ -10,8 +10,9 @@ import {
   IconArrowDown,
   IconArrowUp,
   IconArrowsUpDown,
+  IconLoader2,
 } from "@tabler/icons-vue"
-import { computed, ref } from "vue"
+import { computed, ref, onMounted } from "vue"
 import {
   Table,
   TableBody,
@@ -21,58 +22,44 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { valueUpdater } from "@/components/ui/table/utils"
+import type { ItemData } from "@/types/item"
+import { listItems } from "@/api/item"
 
-// ── Types ──────────────────────────────────────────
-interface InventoryItem {
-  name: string
-  category: string
-  unitPrice: number
-  quantity: number
-  unitWeight: number
+// ── 加载状态 ──────────────────────────────────────
+const items = ref<ItemData[]>([])
+const loading = ref(true)
+
+onMounted(async () => {
+  try {
+    items.value = await listItems()
+  } finally {
+    loading.value = false
+  }
+})
+
+// ── 衍生的展示字段 ────────────────────────────────
+interface ItemDisplay extends ItemData {
+  total_price: number
+  total_weight: number
 }
 
-interface InventoryItemDisplay {
-  name: string
-  category: string
-  unitPrice: number
-  quantity: number
-  unitWeight: number
-  totalPrice: number
-  totalWeight: number
-}
-
-// ── Mock data ───────────────────────────────────────
-const items: InventoryItem[] = [
-  { name: "Iron Longsword", category: "Weapons", unitPrice: 120, quantity: 2, unitWeight: 3.5 },
-  { name: "Elven Bow", category: "Weapons", unitPrice: 250, quantity: 1, unitWeight: 2.0 },
-  { name: "Leather Armor", category: "Armor", unitPrice: 80, quantity: 1, unitWeight: 5.0 },
-  { name: "Steel Shield", category: "Armor", unitPrice: 180, quantity: 1, unitWeight: 4.5 },
-  { name: "Health Potion", category: "Potions", unitPrice: 25, quantity: 5, unitWeight: 0.3 },
-  { name: "Antidote", category: "Potions", unitPrice: 40, quantity: 4, unitWeight: 0.2 },
-  { name: "Moonstone", category: "Materials", unitPrice: 150, quantity: 3, unitWeight: 0.8 },
-  { name: "Mana Crystal", category: "Materials", unitPrice: 300, quantity: 2, unitWeight: 0.5 },
-  { name: "Fireball Scroll", category: "Scrolls", unitPrice: 200, quantity: 1, unitWeight: 0.1 },
-  { name: "Gold Coins (bag)", category: "Treasure", unitPrice: 500, quantity: 1, unitWeight: 1.2 },
-]
-
-// ── Computed ───────────────────────────────────────
-const displayItems = computed<InventoryItemDisplay[]>(() =>
-  items.map((item) => ({
+const displayItems = computed<ItemDisplay[]>(() =>
+  items.value.map((item) => ({
     ...item,
-    totalPrice: item.unitPrice * item.quantity,
-    totalWeight: parseFloat((item.unitWeight * item.quantity).toFixed(2)),
+    total_price: item.unit_price * item.quantity,
+    total_weight: parseFloat((item.unit_weight * item.quantity).toFixed(2)),
   })),
 )
 
 // ── Columns ─────────────────────────────────────────
-const columns: ColumnDef<InventoryItemDisplay>[] = [
+const columns: ColumnDef<ItemDisplay>[] = [
   { accessorKey: "name", header: "Name", enableSorting: true },
   { accessorKey: "category", header: "Category", enableSorting: true },
   {
-    accessorKey: "unitPrice",
+    accessorKey: "unit_price",
     header: "Unit Price",
     enableSorting: true,
-    cell: ({ row }) => `${row.getValue("unitPrice")} g`,
+    cell: ({ row }) => `${row.getValue("unit_price")} g`,
     meta: { className: "text-right tabular-nums" },
   },
   {
@@ -82,20 +69,20 @@ const columns: ColumnDef<InventoryItemDisplay>[] = [
     meta: { className: "text-right tabular-nums" },
   },
   {
-    accessorKey: "totalPrice",
+    accessorKey: "total_price",
     header: "Total Price",
     enableSorting: true,
-    cell: ({ row }) => `${row.getValue("totalPrice")} g`,
+    cell: ({ row }) => `${row.getValue("total_price")} g`,
     meta: { className: "text-right tabular-nums font-semibold" },
   },
   {
-    accessorKey: "unitWeight",
+    accessorKey: "unit_weight",
     header: "Unit Wt",
     enableSorting: true,
     meta: { className: "text-right tabular-nums text-muted-foreground" },
   },
   {
-    accessorKey: "totalWeight",
+    accessorKey: "total_weight",
     header: "Total Wt",
     enableSorting: true,
     meta: { className: "text-right tabular-nums text-muted-foreground" },
@@ -116,7 +103,11 @@ const table = useVueTable({
 </script>
 
 <template>
-  <div class="rounded-md border">
+  <div v-if="loading" class="flex items-center justify-center py-16">
+    <IconLoader2 class="size-8 animate-spin text-muted-foreground/50" />
+  </div>
+
+  <div v-else class="rounded-md border">
     <Table>
       <TableHeader>
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
@@ -158,7 +149,7 @@ const table = useVueTable({
         </template>
         <TableRow v-else>
           <TableCell :colspan="columns.length" class="h-24 text-center">
-            No results.
+            No items available.
           </TableCell>
         </TableRow>
       </TableBody>

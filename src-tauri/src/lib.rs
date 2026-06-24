@@ -24,11 +24,18 @@ fn remove_role(id: u64, world: tauri::State<'_, RwLock<bevy::prelude::World>>) -
     Ok(game::remove_role(&mut world, id))
 }
 
+/// Tauri 命令：列出所有物品
+#[tauri::command]
+fn list_items(world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<Vec<game::ItemData>, String> {
+    let mut world = world.write().map_err(|e| e.to_string())?;
+    Ok(game::list_items(&mut world))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .manage(RwLock::new(game::init_world()))
-    .invoke_handler(tauri::generate_handler![generate_role, list_roles, remove_role])
+    .invoke_handler(tauri::generate_handler![generate_role, list_roles, remove_role, list_items])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(
@@ -43,6 +50,9 @@ pub fn run() {
       if let Ok(mut world) = world.write() {
         let count = game::seed_roles(&mut world, 10);
         log::info!("Seeded {} roles on startup", count.len());
+
+        let items = game::seed_items(&mut world);
+        log::info!("Seeded {} items on startup", items.len());
       }
 
       Ok(())

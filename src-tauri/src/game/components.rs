@@ -40,3 +40,36 @@ pub struct Trait {
 /// 角色特质列表
 #[derive(Component, Debug, Clone, Serialize)]
 pub struct Traits(pub Vec<Trait>);
+
+// ── 物品相关组件 ────────────────────────────────
+
+/// 物品 ID
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+pub struct ItemId(pub u64);
+
+/// 物品名称
+#[derive(Component, Debug, Clone, Serialize)]
+pub struct ItemName(pub String);
+
+/// 物品种类
+#[derive(Component, Debug, Clone, Serialize)]
+pub enum ItemCategory {
+    Weapon,
+    Armor,
+    Potion,
+    Material,
+    Scroll,
+    Treasure,
+}
+
+/// 物品单价 (金币)
+#[derive(Component, Debug, Clone, Serialize)]
+pub struct UnitPrice(pub u32);
+
+/// 物品库存数量
+#[derive(Component, Debug, Clone, Serialize)]
+pub struct ItemQuantity(pub u32);
+
+/// 物品单位重量
+#[derive(Component, Debug, Clone, Serialize)]
+pub struct UnitWeight(pub f32);

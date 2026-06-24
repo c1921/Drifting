@@ -26,22 +26,41 @@ pub struct TraitInfo {
     pub description: String,
 }
 
+/// 返回给前端的物品数据结构
+#[derive(Debug, Clone, Serialize)]
+pub struct ItemData {
+    pub id: u64,
+    pub name: String,
+    pub category: String,
+    pub unit_price: u32,
+    pub quantity: u32,
+    pub unit_weight: f32,
+}
+
 /// 初始化 Bevy World，注册组件和 Resource
 pub fn init_world() -> World {
     let mut world = World::new();
 
-    // 注册组件类型（bevy 0.19 需要显式注册以便 reflect）
+    // 注册组件类型
     world.register_component::<RoleId>();
     world.register_component::<RoleName>();
     world.register_component::<Gender>();
     world.register_component::<Age>();
     world.register_component::<Attributes>();
     world.register_component::<Traits>();
+    world.register_component::<ItemId>();
+    world.register_component::<ItemName>();
+    world.register_component::<ItemCategory>();
+    world.register_component::<UnitPrice>();
+    world.register_component::<ItemQuantity>();
+    world.register_component::<UnitWeight>();
 
     // 插入 Resource
     world.insert_resource(RoleIdCounter::default());
     world.insert_resource(NamePool::default());
     world.insert_resource(TraitPool::default());
+    world.insert_resource(ItemIdCounter::default());
+    world.insert_resource(ItemCatalog::default());
 
     world
 }
@@ -205,4 +224,81 @@ pub fn remove_role(world: &mut World, target_id: u64) -> bool {
     }
 
     found
+}
+
+/// 从模板池启动时批量生成物品
+pub fn seed_items(world: &mut World) -> Vec<ItemData> {
+    let catalog = world.resource::<ItemCatalog>().templates.clone();
+    let mut items = Vec::with_capacity(catalog.len());
+
+    for template in &catalog {
+        let id = world.resource_mut::<ItemIdCounter>().next();
+
+        let category_str = match template.category {
+            ItemCategory::Weapon => "Weapons".to_string(),
+            ItemCategory::Armor => "Armor".to_string(),
+            ItemCategory::Potion => "Potions".to_string(),
+            ItemCategory::Material => "Materials".to_string(),
+            ItemCategory::Scroll => "Scrolls".to_string(),
+            ItemCategory::Treasure => "Treasure".to_string(),
+        };
+
+        let quantity = 1 + (id as u32 % 5); // 1~5 的随机库存
+
+        world.spawn((
+            ItemId(id),
+            ItemName(template.name.to_string()),
+            match template.category {
+                ItemCategory::Weapon => ItemCategory::Weapon,
+                ItemCategory::Armor => ItemCategory::Armor,
+                ItemCategory::Potion => ItemCategory::Potion,
+                ItemCategory::Material => ItemCategory::Material,
+                ItemCategory::Scroll => ItemCategory::Scroll,
+                ItemCategory::Treasure => ItemCategory::Treasure,
+            },
+            UnitPrice(template.unit_price),
+            ItemQuantity(quantity),
+            UnitWeight(template.unit_weight),
+        ));
+
+        items.push(ItemData {
+            id,
+            name: template.name.to_string(),
+            category: category_str,
+            unit_price: template.unit_price,
+            quantity,
+            unit_weight: template.unit_weight,
+        });
+    }
+
+    items
+}
+
+/// 列出所有物品
+pub fn list_items(world: &mut World) -> Vec<ItemData> {
+    let mut items: Vec<ItemData> = Vec::new();
+
+    for (item_id, item_name, category, price, qty, weight) in
+        world.query::<(&ItemId, &ItemName, &ItemCategory, &UnitPrice, &ItemQuantity, &UnitWeight)>().iter(world)
+    {
+        let category_str = match category {
+            ItemCategory::Weapon => "Weapons".to_string(),
+            ItemCategory::Armor => "Armor".to_string(),
+            ItemCategory::Potion => "Potions".to_string(),
+            ItemCategory::Material => "Materials".to_string(),
+            ItemCategory::Scroll => "Scrolls".to_string(),
+            ItemCategory::Treasure => "Treasure".to_string(),
+        };
+
+        items.push(ItemData {
+            id: item_id.0,
+            name: item_name.0.clone(),
+            category: category_str,
+            unit_price: price.0,
+            quantity: qty.0,
+            unit_weight: weight.0,
+        });
+    }
+
+    items
 }

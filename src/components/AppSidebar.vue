@@ -2,11 +2,13 @@
 import type { SidebarProps } from '@/components/ui/sidebar'
 
 import {
-  IconChartPie,
-  IconFrame,
+  IconCalendarEvent,
   IconMap,
+  IconPackage,
+  IconShoppingCart,
+  IconUserShield,
 } from '@tabler/icons-vue'
-import NavProjects from '@/components/NavProjects.vue'
+import NavMain from '@/components/NavMain.vue'
 import ModeToggle from '@/components/ModeToggle.vue'
 
 import {
@@ -22,19 +24,29 @@ const props = withDefaults(defineProps<SidebarProps>(), {
 
 // This is sample data.
 const data = {
-  projects: [
+  navMain: [
     {
-      name: "Design Engineering",
+      title: "Role",
       url: "#",
-      icon: IconFrame,
+      icon: IconUserShield,
     },
     {
-      name: "Sales & Marketing",
+      title: "Items",
       url: "#",
-      icon: IconChartPie,
+      icon: IconPackage,
     },
     {
-      name: "Travel",
+      title: "Events",
+      url: "#",
+      icon: IconCalendarEvent,
+    },
+    {
+      title: "Trading",
+      url: "#",
+      icon: IconShoppingCart,
+    },
+    {
+      title: "Map",
       url: "#",
       icon: IconMap,
     },
@@ -45,7 +57,7 @@ const data = {
 <template>
   <Sidebar v-bind="props">
     <SidebarContent>
-      <NavProjects :projects="data.projects" />
+      <NavMain :items="data.navMain" />
     </SidebarContent>
     <SidebarFooter class="border-t p-2">
       <div class="flex justify-center">

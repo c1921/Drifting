@@ -63,9 +63,8 @@ export function createLocationLayer(
 
 function dotColor(type: LocationData["type"], colors: ThemeColors): number {
   switch (type) {
-    case "town":       return colors.foreground
-    case "dungeon":    return colors.destructive
-    case "wilderness": return 0x5a9e6f  // green-ish
-    case "landmark":   return colors.primary
+    case "large":  return colors.primary      // 城市 — 主色高亮
+    case "medium": return colors.foreground    // 小镇 — 标准色
+    case "small":  return 0x5a9e6f             // 村庄 — 绿色
   }
 }

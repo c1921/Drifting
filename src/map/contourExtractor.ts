@@ -43,8 +43,8 @@ export function extractContours(
   }
 
   // 世界坐标范围映射
-  const worldMin = -400
-  const worldMax = 400
+  const worldMin = -800
+  const worldMax = 800
 
   function gridToWorld(gx: number, gy: number): [number, number] {
     return [

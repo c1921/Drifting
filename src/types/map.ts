@@ -1,5 +1,5 @@
-/** 地点类型 */
-export type LocationType = "town" | "dungeon" | "wilderness" | "landmark"
+/** 地点类型（匹配后端生成：large=城市, medium=小镇, small=村庄） */
+export type LocationType = "large" | "medium" | "small"
 
 /** 地点数据 */
 export interface LocationData {

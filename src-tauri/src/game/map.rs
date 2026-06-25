@@ -4,31 +4,33 @@ use rand::Rng;
 use serde::Serialize;
 
 // ── 地图常量 ──────────────────────────────────────
-pub const MAP_WIDTH: u32 = 256;
-pub const MAP_HEIGHT: u32 = 256;
-pub const MAP_SCALE: f64 = 0.015; // 噪声缩放（越大细节越密）
-pub const OCTAVES: usize = 6;     // FBM 层数
+pub const MAP_WIDTH: u32 = 512;
+pub const MAP_HEIGHT: u32 = 512;
+pub const MAP_SCALE: f64 = 0.008; // 噪声缩放（越小特征越大）
+pub const OCTAVES: usize = 4;     // FBM 层数（越少细节越平滑）
 pub const PERSISTENCE: f64 = 0.5;
 pub const LACUNARITY: f64 = 2.0;
 
+/// A* 坡度惩罚系数：越大则路径越倾向于绕开陡坡（即使路径变长）
+const SLOPE_PENALTY: f64 = 300.0;
+
 // ── 前端期望的坐标系范围 ──────────────────────────
 // 前端地图在 [-400, 400] x [-300, 300] 范围内
-const WORLD_MIN: f64 = -400.0;
-const WORLD_MAX: f64 = 400.0;
+const WORLD_MIN: f64 = -800.0;
+const WORLD_MAX: f64 = 800.0;
 
 // ── 数据结构 ──────────────────────────────────────
 
 /// 地点类型（匹配前端 LocationData.type）
+/// Large = 城市, Medium = 小镇, Small = 村庄
 #[derive(Debug, Clone, Serialize)]
 pub enum LocationType {
-    #[serde(rename = "town")]
-    Town,
-    #[serde(rename = "dungeon")]
-    Dungeon,
-    #[serde(rename = "wilderness")]
-    Wilderness,
-    #[serde(rename = "landmark")]
-    Landmark,
+    #[serde(rename = "large")]
+    Large,
+    #[serde(rename = "medium")]
+    Medium,
+    #[serde(rename = "small")]
+    Small,
 }
 
 /// 单个地点
@@ -61,25 +63,28 @@ pub struct MapData {
 
 // ── 名称池 ──────────────────────────────────────
 
-const TOWN_NAMES: &[&str] = &[
-    "Riverton", "Fairhaven", "Stonebridge", "Willowdale", "Briarwood",
-    "Thornwall", "Ashford", "Oakhaven", "Silverbrook", "Maplecrest",
-    "Ironforge", "Dawnhold", "Sunrise Haven", "Starlight", "Eastwatch",
+// ── 名称池（按地点规模分级）────────────────────
+
+const LARGE_NAMES: &[&str] = &[
+    "Aetheris", "Bastion", "Celestia", "Dragonport", "Everbright",
+    "Goldspire", "Highreach", "Ironhold", "King's Landing", "Luminara",
+    "Meridian", "Northgate", "Obsidian", "Palisade", "Queensford",
 ];
 
-const DUNGEON_NAMES: &[&str] = &[
-    "Ancient Temple", "Abandoned Mine", "Dark Crypt", "Frozen Catacombs",
-    "Shadow Keep", "Serpent's Hollow", "Wyrm's Rest", "Obsidian Depths",
+const MEDIUM_NAMES: &[&str] = &[
+    "Ashford", "Briarwood", "Copperford", "Dawnhold", "Eastwatch",
+    "Fairhaven", "Glenwood", "Hollowshire", "Ivorygate", "Jadeport",
+    "Kingsford", "Lunaris", "Maplecrest", "Northbrook", "Oakhaven",
+    "Pinehaven", "Riverton", "Silverbrook", "Starlight", "Stonebridge",
+    "Thornwall", "Willowdale", "Westmarch", "Wyncrest", "Millbrook",
 ];
 
-const WILDERNESS_NAMES: &[&str] = &[
-    "Darkwood", "Mistvale Forest", "Thornbriar Wilds", "Whispering Pines",
-    "Scarlet Meadows", "Ravenmoor", "Wolf's Glen",
-];
-
-const LANDMARK_NAMES: &[&str] = &[
-    "Crystal Peaks", "Stone Outpost", "Dragon's Tooth", "The Spire",
-    "Moonlit Tower", "Guardian Statue", "World Tree",
+const SMALL_NAMES: &[&str] = &[
+    "Applewood", "Birch Hollow", "Cobblestone", "Dusty Creek", "Elmstead",
+    "Fernbank", "Greenvale", "Hawthorn", "Ivy Cottage", "Juniper",
+    "Larkspur", "Mossy Rock", "New Dawn", "Oakleaf", "Primrose",
+    "Quiet Pond", "Red Deer", "Sunny Vale", "Timber Mill", "Underhill",
+    "Violet Field", "Wild Rose", "Yarrow", "Zephyr Cove", "Amber Glade",
 ];
 
 // ── 主要生成函数 ──────────────────────────────────
@@ -163,54 +168,63 @@ fn world_to_pixel(wx: f64, wy: f64) -> (u32, u32) {
 
 // ── 地点生成 ──────────────────────────────────
 
-/// 在地图上随机生成地点
+/// 在地图上按高度分层生成大/中/小三类地点
+/// Large（城市）→ 平原 h<0.20
+/// Medium（小镇）→ 低海拔 h<0.35
+/// Small（村庄）→ 可到中海拔 h<0.50
 fn generate_locations(heights: &[f64], seed: u32) -> Vec<LocationData> {
     let mut locations = Vec::new();
-    // 使用独立 RNG 以保证 seed 稳定
     let mut loc_rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(
         [seed as u8; 32]
     );
 
-    // 尝试生成多个候选点，取不重叠的
-    let max_attempts = 200;
-    let target_count = 9 + (seed as usize % 4); // 9~12 个地点
+    // 目标：50~60 个地点
+    let max_attempts = 1000;
+    let target_count = 50 + (seed as usize % 11); // 50~60
 
+    // 各类型目标占比：Large ~15%, Medium ~40%, Small ~45%
     let mut attempts = 0;
     while locations.len() < target_count && attempts < max_attempts {
         attempts += 1;
 
-        let px = loc_rng.gen_range(30..MAP_WIDTH - 30);
-        let py = loc_rng.gen_range(30..MAP_HEIGHT - 30);
+        let px = loc_rng.gen_range(40..MAP_WIDTH - 40);
+        let py = loc_rng.gen_range(40..MAP_HEIGHT - 40);
         let h = get_height(heights, px, py);
 
-        // 检查间距（至少 60 像素）
+        // 跳过过高海拔（>0.50 不适合定居）
+        if h >= 0.50 {
+            continue;
+        }
+
+        // 检查间距（至少 90 世界单位）
         let (wx, wy) = pixel_to_world(px, py);
         let too_close = locations.iter().any(|l: &LocationData| {
             let dx = l.x - wx;
             let dy = l.y - wy;
-            (dx * dx + dy * dy) < 6400.0 // 80^2
+            (dx * dx + dy * dy) < 8100.0 // 90^2
         });
         if too_close {
             continue;
         }
 
-        // 根据高度决定类型
-        let loc_type = if h < 0.3 {
-            LocationType::Town
-        } else if h < 0.5 {
-            if loc_rng.gen_bool(0.5) {
-                LocationType::Wilderness
+        // 按高度决定地点规模
+        let loc_type = if h < 0.20 {
+            // 平原：城市或小镇
+            if loc_rng.gen_bool(0.30) {
+                LocationType::Large
             } else {
-                LocationType::Landmark
+                LocationType::Medium
             }
-        } else if h < 0.7 {
-            if loc_rng.gen_bool(0.6) {
-                LocationType::Wilderness
+        } else if h < 0.35 {
+            // 低海拔：小镇或村庄
+            if loc_rng.gen_bool(0.40) {
+                LocationType::Medium
             } else {
-                LocationType::Landmark
+                LocationType::Small
             }
         } else {
-            LocationType::Dungeon
+            // 中海拔：仅限村庄
+            LocationType::Small
         };
 
         let name = pick_name(&loc_type, &mut loc_rng);
@@ -225,16 +239,43 @@ fn generate_locations(heights: &[f64], seed: u32) -> Vec<LocationData> {
         });
     }
 
+    // ── 兜底：确保至少有 4 个城市 ─────────────────
+    let large_count = locations.iter().filter(|l| matches!(l.loc_type, LocationType::Large)).count();
+    if large_count < 4 {
+        let needed = 4 - large_count;
+        // 从 Medium 中随机选 needed 个升级为 Large
+        let medium_indices: Vec<usize> = locations.iter().enumerate()
+            .filter(|(_, l)| matches!(l.loc_type, LocationType::Medium))
+            .map(|(i, _)| i)
+            .collect();
+        let mut rng = rand::thread_rng();
+        let upgrade_count = needed.min(medium_indices.len());
+        let chosen = if upgrade_count < medium_indices.len() {
+            let mut indices = medium_indices;
+            // 打乱后取前 upgrade_count 个
+            for i in (1..indices.len()).rev() {
+                let j = rng.gen_range(0..=i);
+                indices.swap(i, j);
+            }
+            indices[..upgrade_count].to_vec()
+        } else {
+            medium_indices
+        };
+        for &idx in &chosen {
+            locations[idx].loc_type = LocationType::Large;
+            locations[idx].name = pick_name(&LocationType::Large, &mut loc_rng);
+        }
+    }
+
     locations
 }
 
-/// 从对应类型的名称池中选取一个不重复的名字
+/// 从对应规模的名称池中选取一个名字
 fn pick_name(loc_type: &LocationType, rng: &mut impl Rng) -> String {
     let pool = match loc_type {
-        LocationType::Town => TOWN_NAMES,
-        LocationType::Dungeon => DUNGEON_NAMES,
-        LocationType::Wilderness => WILDERNESS_NAMES,
-        LocationType::Landmark => LANDMARK_NAMES,
+        LocationType::Large => LARGE_NAMES,
+        LocationType::Medium => MEDIUM_NAMES,
+        LocationType::Small => SMALL_NAMES,
     };
     let idx = rng.gen_range(0..pool.len());
     pool[idx].to_string()
@@ -386,7 +427,7 @@ fn a_star_path(
 
             // 代价 = 距离 + 高度变化惩罚（尽量少上下坡）
             let dh = (nh - cur_h).abs();
-            let step_cost = BASE_COST[i] + dh * 5.0;
+            let step_cost = BASE_COST[i] + dh * SLOPE_PENALTY;
             let tentative_g = cur_g + step_cost;
 
             if tentative_g < g[nidx] {

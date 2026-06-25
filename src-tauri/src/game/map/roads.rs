@@ -196,9 +196,11 @@ fn create_road_segment(
         let mut points = Vec::with_capacity(simplified.len() * 2 + 4);
         points.push((from_x * 10.0).round() / 10.0);
         points.push((from_y * 10.0).round() / 10.0);
-        for &(x, y) in &simplified[1..simplified.len().saturating_sub(1)] {
-            points.push((x * 10.0).round() / 10.0);
-            points.push((y * 10.0).round() / 10.0);
+        if simplified.len() > 1 {
+            for &(x, y) in &simplified[1..simplified.len().saturating_sub(1)] {
+                points.push((x * 10.0).round() / 10.0);
+                points.push((y * 10.0).round() / 10.0);
+            }
         }
         points.push((to_x * 10.0).round() / 10.0);
         points.push((to_y * 10.0).round() / 10.0);

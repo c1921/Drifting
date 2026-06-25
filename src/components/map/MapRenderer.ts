@@ -61,7 +61,7 @@ export async function createMap(
   /** Fit the map into the viewport */
   function resetView() {
     const { width, height } = app.screen
-    const s = Math.min(width / 1600, height / 1200) * 0.85
+    const s = Math.min(width / 1600, height / 1600) * 0.85
     world.position.set(width / 2, height / 2)
     world.scale.set(s)
   }

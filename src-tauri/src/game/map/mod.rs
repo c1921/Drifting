@@ -18,6 +18,28 @@ pub(crate) const SLOPE_PENALTY: f64 = 300.0;
 pub(crate) const WORLD_MIN: f64 = -800.0;
 pub(crate) const WORLD_MAX: f64 = 800.0;
 
+// ── 地点生成参数 ──────────────────────────────────
+pub(crate) const CITY_COUNT: usize = 3;
+pub(crate) const TOWN_COUNT: usize = 20;
+pub(crate) const TOTAL_TARGET: usize = 120;
+
+// ── 地点间距约束（世界单位）─────────────────────────
+pub(crate) const DIST_CITY_CITY: f64 = 300.0;
+pub(crate) const DIST_CITY_TOWN: f64 = 80.0;
+pub(crate) const DIST_TOWN_TOWN: f64 = 80.0;
+pub(crate) const DIST_TOWN_VILLAGE: f64 = 10.0;
+pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 10.0;
+pub(crate) const DIST_VILLAGE_CITY: f64 = 15.0;
+
+// ── 吸引力参数（采样偏向聚落中心，无硬性最大距离）─────
+pub(crate) const ATTRACT_NEAR_PROB: f64 = 0.85;
+pub(crate) const ATTRACT_CITY_TOWN_FALLOFF: f64 = 300.0;
+pub(crate) const ATTRACT_TOWN_VILLAGE_FALLOFF: f64 = 120.0;
+pub(crate) const ATTRACT_CITY_VILLAGE_FALLOFF: f64 = 350.0;
+
+// ── 地形过滤阈值 ──────────────────────────────────
+pub(crate) const FLAT_THRESHOLD: f64 = 0.10;
+
 // ── 数据结构 ──────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -92,51 +114,62 @@ pub fn generate_map(seed: u32) -> MapData {
 
     let heightmap = heightmap::generate_heightmap(seed);
 
-    // 1. 生成位置（h<0.10 低海拔平原，无类型标记）
-    let positions = settlements::generate_positions(&heightmap, seed);
+    // 1. 分层生成位置：城市 → 小镇 → 村庄
+    let cities = settlements::generate_cities(&heightmap, seed);
+    let towns = settlements::generate_towns(&heightmap, seed, &cities);
+    let villages = settlements::generate_villages(&heightmap, seed, &cities, &towns);
 
-    // 2. Delaunay 三角剖分 → 候选边
-    let mut edges = network::build_delaunay_edges(&positions);
+    // 2. 合并所有位置并构建 LocationData（类型在生成时已确定）
+    let cap = cities.len() + towns.len() + villages.len();
+    let mut positions: Vec<(f64, f64)> = Vec::with_capacity(cap);
+    let mut locations: Vec<LocationData> = Vec::with_capacity(cap);
+    let mut id = 1usize;
 
-    // 3. 过滤长边（中位数 × 3）
-    edges = network::filter_long_edges(&edges, &positions);
+    for &(x, y) in &cities {
+        positions.push((x, y));
+        locations.push(LocationData {
+            id: format!("loc_{}", id),
+            name: settlements::pick_name(&LocationType::Large, &mut rng),
+            x, y,
+            loc_type: LocationType::Large,
+        });
+        id += 1;
+    }
+    for &(x, y) in &towns {
+        positions.push((x, y));
+        locations.push(LocationData {
+            id: format!("loc_{}", id),
+            name: settlements::pick_name(&LocationType::Medium, &mut rng),
+            x, y,
+            loc_type: LocationType::Medium,
+        });
+        id += 1;
+    }
+    for &(x, y) in &villages {
+        positions.push((x, y));
+        locations.push(LocationData {
+            id: format!("loc_{}", id),
+            name: settlements::pick_name(&LocationType::Small, &mut rng),
+            x, y,
+            loc_type: LocationType::Small,
+        });
+        id += 1;
+    }
 
-    // 4. 连通性兜底
-    edges = network::ensure_connectivity(&edges, &positions);
-
-    // 5. 图中心性评分
-    let scores = network::compute_settlement_scores(&positions, &edges);
-
-    // 6. 百分位排名 → 类型分配（0=Small, 1=Medium, 2=Large）
-    let type_classes = settlements::classify_by_central_place(&positions, &scores);
-
-    // 7. 构建 LocationData
-    let locations: Vec<LocationData> = positions.iter().enumerate()
-        .map(|(i, &(x, y))| {
-            let loc_type = match type_classes[i] {
-                2 => LocationType::Large,
-                1 => LocationType::Medium,
-                _ => LocationType::Small,
-            };
-            let name = settlements::pick_name(&loc_type, &mut rng);
-            LocationData {
-                id: format!("loc_{}", i + 1),
-                name,
-                x,
-                y,
-                loc_type,
-            }
-        })
-        .collect();
-
-    // 日志
-    let large_count = locations.iter().filter(|l| matches!(l.loc_type, LocationType::Large)).count();
-    let medium_count = locations.iter().filter(|l| matches!(l.loc_type, LocationType::Medium)).count();
-    let small_count = locations.iter().filter(|l| matches!(l.loc_type, LocationType::Small)).count();
+    // 3. 日志
     log::info!(
         "Map [seed={}]: {} locations (Large={}, Medium={}, Small={})",
-        seed, locations.len(), large_count, medium_count, small_count,
+        seed, locations.len(), cities.len(), towns.len(), villages.len(),
     );
+
+    // 4. Delaunay 三角剖分 → 候选边
+    let mut edges = network::build_delaunay_edges(&positions);
+
+    // 5. 过滤长边（中位数 × 3）
+    edges = network::filter_long_edges(&edges, &positions);
+
+    // 6. 连通性兜底
+    edges = network::ensure_connectivity(&edges, &positions);
 
     // 7. 过滤冗余边：删除存在替代路径且绕路不超过 30% 的边
     let before = edges.len();

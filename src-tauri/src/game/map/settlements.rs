@@ -1,46 +1,174 @@
 use rand::Rng;
-use super::{LocationType, MAP_WIDTH, MAP_HEIGHT, LARGE_NAMES, MEDIUM_NAMES, SMALL_NAMES};
+use super::{LocationType, MAP_WIDTH, MAP_HEIGHT, WORLD_MIN, WORLD_MAX, LARGE_NAMES, MEDIUM_NAMES, SMALL_NAMES};
 use super::heightmap;
+use super::{CITY_COUNT, TOWN_COUNT, TOTAL_TARGET,
+    DIST_CITY_CITY, DIST_CITY_TOWN, DIST_TOWN_TOWN,
+    DIST_TOWN_VILLAGE, DIST_VILLAGE_VILLAGE, DIST_VILLAGE_CITY,
+    FLAT_THRESHOLD,
+    ATTRACT_NEAR_PROB, ATTRACT_CITY_TOWN_FALLOFF,
+    ATTRACT_TOWN_VILLAGE_FALLOFF, ATTRACT_CITY_VILLAGE_FALLOFF};
 
-/// 仅在高度 h<0.10 的低海拔区域生成位置，不分配类型
-pub(super) fn generate_positions(heights: &[f64], seed: u32) -> Vec<(f64, f64)> {
-    let mut loc_rng: rand::rngs::StdRng = rand::SeedableRng::from_seed([seed as u8; 32]);
-
-    let max_attempts = 3000;
-    let target_count = 120 + (seed as usize % 21); // 120~140
-
-    let mut positions: Vec<(f64, f64)> = Vec::with_capacity(target_count);
+/// 通用地点放置：吸引力驱动采样 + 最小距离约束
+fn place_settlements(
+    heights: &[f64],
+    layer_seed: u32,
+    target_count: usize,
+    constraint_groups: &[(&[(f64, f64)], f64)],   // (已有位置, 最小距离)
+    dist_to_peer: f64,                              // 同层最小间距
+    attractors: &[(&[(f64, f64)], f64)],            // (吸引子中心, falloff)
+    max_attempts: usize,
+) -> Vec<(f64, f64)> {
+    let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed([layer_seed as u8; 32]);
+    let mut placed: Vec<(f64, f64)> = Vec::with_capacity(target_count);
     let mut attempts = 0;
 
-    while positions.len() < target_count && attempts < max_attempts {
+    let sq_peer = dist_to_peer * dist_to_peer;
+    let sq_constraints: Vec<(&[(f64, f64)], f64)> = constraint_groups
+        .iter()
+        .map(|(group, d)| (*group, d * d))
+        .collect();
+
+    // 展平所有吸引子（每个中心独立，继承其分组 falloff）
+    let flat_attractors: Vec<((f64, f64), f64)> = attractors
+        .iter()
+        .flat_map(|(centers, falloff)| centers.iter().map(move |&c| (c, *falloff)))
+        .collect();
+
+    while placed.len() < target_count && attempts < max_attempts {
         attempts += 1;
 
-        let px = loc_rng.gen_range(40..MAP_WIDTH - 40);
-        let py = loc_rng.gen_range(40..MAP_HEIGHT - 40);
-        let h = heightmap::get_height(heights, px, py);
+        // ── 采样候选坐标 ──────────────────────────
+        let (wx, wy) = if !flat_attractors.is_empty() && rng.gen_bool(ATTRACT_NEAR_PROB) {
+            // 吸引力路径：在吸引子 falloff 半径内以面积均匀分布采样
+            let idx = rng.gen_range(0..flat_attractors.len());
+            let ((cx, cy), falloff) = flat_attractors[idx];
+            let angle = rng.gen_range(0.0..std::f64::consts::TAU);
+            let u: f64 = rng.gen_range(0.0..1.0);
+            let r = falloff * u * u;
+            (cx + r * angle.cos(), cy + r * angle.sin())
+        } else {
+            // 均匀采样路径
+            let px = rng.gen_range(40..MAP_WIDTH - 40);
+            let py = rng.gen_range(40..MAP_HEIGHT - 40);
+            let (wx, wy) = heightmap::pixel_to_world(px, py);
+            (wx, wy)
+        };
 
-        if h >= 0.10 {
+        // ── 世界坐标边界检查：吸引力路径可能越界 ────
+        if wx < WORLD_MIN || wx > WORLD_MAX || wy < WORLD_MIN || wy > WORLD_MAX {
             continue;
         }
 
-        let (wx, wy) = heightmap::pixel_to_world(px, py);
         let wx = (wx * 10.0).round() / 10.0;
         let wy = (wy * 10.0).round() / 10.0;
 
-        // 检查间距（至少 40 世界单位）
-        let too_close = positions.iter().any(|&(x, y)| {
-            let dx = x - wx;
-            let dy = y - wy;
-            (dx * dx + dy * dy) < 1600.0
-        });
-        if too_close {
+        // ── 高度过滤 ──────────────────────────────
+        let (px, py) = heightmap::world_to_pixel(wx, wy);
+        let h = heightmap::get_height(heights, px, py);
+        if h >= FLAT_THRESHOLD {
             continue;
         }
 
-        positions.push((wx, wy));
+        // ── 最小距离约束（上层分组）────────────────
+        let mut skip = false;
+        for (group, sq_d) in &sq_constraints {
+            if group.iter().any(|&(x, y)| {
+                let dx = x - wx;
+                let dy = y - wy;
+                dx * dx + dy * dy < *sq_d
+            }) {
+                skip = true;
+                break;
+            }
+        }
+        if skip {
+            continue;
+        }
+
+        // ── 同层间距 ──────────────────────────────
+        if placed.iter().any(|&(x, y)| {
+            let dx = x - wx;
+            let dy = y - wy;
+            dx * dx + dy * dy < sq_peer
+        }) {
+            continue;
+        }
+
+        placed.push((wx, wy));
     }
 
-    positions
+    placed
+}
+
+/// 生成城市：均匀分布，仅城市间最小距离约束
+pub(super) fn generate_cities(heights: &[f64], seed: u32) -> Vec<(f64, f64)> {
+    let cities = place_settlements(
+        heights, seed, CITY_COUNT,
+        &[],
+        DIST_CITY_CITY,
+        &[],
+        3000,
+    );
+    if cities.len() < CITY_COUNT {
+        log::warn!(
+            "Map [seed={}]: only placed {}/{} cities",
+            seed, cities.len(), CITY_COUNT
+        );
+    }
+    cities
+}
+
+/// 生成小镇：由城市吸引，满足城市-小镇最小距离 + 镇间最小距离
+pub(super) fn generate_towns(
+    heights: &[f64],
+    seed: u32,
+    cities: &[(f64, f64)],
+) -> Vec<(f64, f64)> {
+    let towns = place_settlements(
+        heights,
+        seed.wrapping_add(1),
+        TOWN_COUNT,
+        &[(cities, DIST_CITY_TOWN)],
+        DIST_TOWN_TOWN,
+        &[(cities, ATTRACT_CITY_TOWN_FALLOFF)],
+        3000,
+    );
+    if towns.len() < TOWN_COUNT {
+        log::warn!(
+            "Map [seed={}]: only placed {}/{} towns",
+            seed, towns.len(), TOWN_COUNT
+        );
+    }
+    towns
+}
+
+/// 生成村庄：由城市(弱)和小镇(强)吸引，满足对城市/小镇的最小距离 + 村间最小距离
+pub(super) fn generate_villages(
+    heights: &[f64],
+    seed: u32,
+    cities: &[(f64, f64)],
+    towns: &[(f64, f64)],
+) -> Vec<(f64, f64)> {
+    let village_target = TOTAL_TARGET.saturating_sub(CITY_COUNT + TOWN_COUNT);
+    let villages = place_settlements(
+        heights,
+        seed.wrapping_add(2),
+        village_target,
+        &[(cities, DIST_VILLAGE_CITY), (towns, DIST_TOWN_VILLAGE)],
+        DIST_VILLAGE_VILLAGE,
+        &[
+            (cities, ATTRACT_CITY_VILLAGE_FALLOFF),
+            (towns, ATTRACT_TOWN_VILLAGE_FALLOFF),
+        ],
+        5000,
+    );
+    if villages.len() < village_target {
+        log::warn!(
+            "Map [seed={}]: only placed {}/{} villages",
+            seed, villages.len(), village_target
+        );
+    }
+    villages
 }
 
 /// 从对应规模的名称池中选取一个名字
@@ -52,87 +180,4 @@ pub(super) fn pick_name(loc_type: &LocationType, rng: &mut impl Rng) -> String {
     };
     let idx = rng.gen_range(0..pool.len());
     pool[idx].to_string()
-}
-
-/// 基于中心地理论的空间约束分配：按分数降序 + 间距约束，城市优先抢占、小镇次之
-pub(super) fn classify_by_central_place(
-    positions: &[(f64, f64)],
-    scores: &[f64],
-) -> Vec<usize> {
-    let n = positions.len();
-    if n == 0 {
-        return Vec::new();
-    }
-
-    let m = compute_median_nn_distance(positions);
-    let (d_l, d_ml, d_m) = (m * 5.0, m * 3.5, m * 2.5);
-
-    let medium_target = (n as f64 * 0.18) as usize;
-    let large_cap = 3usize.min(n);
-
-    // 按分数降序排列索引
-    let mut order: Vec<usize> = (0..n).collect();
-    order.sort_by(|&a, &b| scores[b].partial_cmp(&scores[a]).unwrap());
-
-    let mut result = vec![0usize; n];
-    let (mut large, mut medium) = (Vec::new(), Vec::new());
-
-    for &i in &order {
-        let (x, y) = positions[i];
-        // 城市优先抢占地盘
-        if large.len() < large_cap && min_dist_to(x, y, &large, positions) >= d_l {
-            result[i] = 2;
-            large.push(i);
-        }
-        // 小镇在剩余空间中选
-        else if medium.len() < medium_target
-            && min_dist_to(x, y, &large, positions) >= d_ml
-            && min_dist_to(x, y, &medium, positions) >= d_m
-        {
-            result[i] = 1;
-            medium.push(i);
-        }
-    }
-
-    result
-}
-
-/// 计算点到一组已选点的最小欧几里得距离
-fn min_dist_to(x: f64, y: f64, ids: &[usize], positions: &[(f64, f64)]) -> f64 {
-    ids.iter()
-        .map(|&j| {
-            let dx = x - positions[j].0;
-            let dy = y - positions[j].1;
-            (dx * dx + dy * dy).sqrt()
-        })
-        .fold(f64::MAX, f64::min)
-}
-
-/// 计算每个点到其最近邻的距离，取中位数（反映点的稀疏程度）
-fn compute_median_nn_distance(positions: &[(f64, f64)]) -> f64 {
-    let n = positions.len();
-    if n <= 1 {
-        return 100.0;
-    }
-
-    let mut nn_dists = Vec::with_capacity(n);
-    for i in 0..n {
-        let (xi, yi) = positions[i];
-        let mut min_d2 = f64::MAX;
-        for j in 0..n {
-            if i == j {
-                continue;
-            }
-            let dx = xi - positions[j].0;
-            let dy = yi - positions[j].1;
-            let d2 = dx * dx + dy * dy;
-            if d2 < min_d2 {
-                min_d2 = d2;
-            }
-        }
-        nn_dists.push(min_d2.sqrt());
-    }
-
-    nn_dists.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    nn_dists[n / 2]
 }

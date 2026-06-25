@@ -15,16 +15,19 @@ export function createLocationLayer(
     group.eventMode = "static"
     group.cursor = "pointer"
 
+    const ringRadius = ringSize(loc.type)
+    const dotRadius = dotSize(loc.type)
+
     // Outer ring
     const ring = new Graphics()
-    ring.circle(0, 0, 7)
+    ring.circle(0, 0, ringRadius)
     ring.fill({ color: colors.card })
     ring.stroke({ width: 2, color: colors.foreground, alpha: 0.8 })
     group.addChild(ring)
 
     // Type indicator dot
     const dot = new Graphics()
-    dot.circle(0, 0, 3)
+    dot.circle(0, 0, dotRadius)
     dot.fill({ color: dotColor(loc.type, colors) })
     group.addChild(dot)
 
@@ -39,7 +42,7 @@ export function createLocationLayer(
       },
     })
     label.anchor.set(0.5, 0)
-    label.position.set(0, 12)
+    label.position.set(0, ringRadius + 6)
     group.addChild(label)
 
     // Hover effects
@@ -61,10 +64,29 @@ export function createLocationLayer(
   return layer
 }
 
+/** 根据地点类型返回外环半径 */
+function ringSize(type: LocationData["type"]): number {
+  switch (type) {
+    case "large":  return 9   // 城市 — 大
+    case "medium": return 7   // 小镇 — 中
+    case "small":  return 5   // 村庄 — 小
+  }
+}
+
+/** 根据地点类型返回内点半径 */
+function dotSize(type: LocationData["type"]): number {
+  switch (type) {
+    case "large":  return 4.5 // 城市 — 大
+    case "medium": return 3   // 小镇 — 中
+    case "small":  return 2   // 村庄 — 小
+  }
+}
+
+/** 根据地点类型返回标识颜色 */
 function dotColor(type: LocationData["type"], colors: ThemeColors): number {
   switch (type) {
-    case "large":  return colors.primary      // 城市 — 主色高亮
-    case "medium": return colors.foreground    // 小镇 — 标准色
-    case "small":  return 0x5a9e6f             // 村庄 — 绿色
+    case "large":  return 0x22c55e  // 城市 — 绿色
+    case "medium": return 0xeab308  // 小镇 — 黄色
+    case "small":  return colors.foreground // 村庄 — 默认色
   }
 }

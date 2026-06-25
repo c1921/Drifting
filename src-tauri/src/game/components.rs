@@ -1,4 +1,4 @@
-use bevy::prelude::Component;
+use bevy_ecs::component::Component;
 use serde::Serialize;
 
 /// 角色 ID

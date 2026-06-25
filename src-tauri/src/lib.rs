@@ -5,35 +5,35 @@ use tauri::Manager;
 
 /// Tauri 命令：生成一个新角色
 #[tauri::command]
-fn generate_role(world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<game::RoleData, String> {
+fn generate_role(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<game::RoleData, String> {
     let mut world = world.write().map_err(|e| e.to_string())?;
     Ok(game::generate_role(&mut world))
 }
 
 /// Tauri 命令：列出所有角色
 #[tauri::command]
-fn list_roles(world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<Vec<game::RoleData>, String> {
+fn list_roles(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<Vec<game::RoleData>, String> {
     let mut world = world.write().map_err(|e| e.to_string())?;
     Ok(game::list_roles(&mut world))
 }
 
 /// Tauri 命令：删除指定角色
 #[tauri::command]
-fn remove_role(id: u64, world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<bool, String> {
+fn remove_role(id: u64, world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<bool, String> {
     let mut world = world.write().map_err(|e| e.to_string())?;
     Ok(game::remove_role(&mut world, id))
 }
 
 /// Tauri 命令：列出所有物品
 #[tauri::command]
-fn list_items(world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<Vec<game::ItemData>, String> {
+fn list_items(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<Vec<game::ItemData>, String> {
     let mut world = world.write().map_err(|e| e.to_string())?;
     Ok(game::list_items(&mut world))
 }
 
 /// Tauri 命令：获取地图数据（首次调用时自动生成）
 #[tauri::command]
-fn get_map(world: tauri::State<'_, RwLock<bevy::prelude::World>>) -> Result<game::map::MapData, String> {
+fn get_map(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<game::map::MapData, String> {
     let mut world = world.write().map_err(|e| e.to_string())?;
 
     // 如果已有地图则直接返回
@@ -62,7 +62,7 @@ pub fn run() {
       }
 
       // 启动时自动生成 10 个角色
-      let world = app.state::<RwLock<bevy::prelude::World>>();
+      let world = app.state::<RwLock<bevy_ecs::world::World>>();
       if let Ok(mut world) = world.write() {
         let count = game::seed_roles(&mut world, 10);
         log::info!("Seeded {} roles on startup", count.len());

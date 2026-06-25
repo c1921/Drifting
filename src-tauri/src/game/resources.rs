@@ -1,4 +1,4 @@
-use bevy::prelude::Resource;
+use bevy_ecs::resource::Resource;
 
 /// 自增角色 ID 计数器
 #[derive(Resource, Debug)]

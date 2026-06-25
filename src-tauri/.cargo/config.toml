@@ -1,0 +1,9 @@
+# ── 加速链接：使用 LLVM LLD 替代默认链接器 ──
+# 安装方式: cargo install -f cargo-binutils && rustup component add llvm-tools-preview
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
+
+# Linux 用户可取消注释以下行（需安装 lld: sudo apt install lld clang）
+# [target.x86_64-unknown-linux-gnu]
+# linker = "clang"
+# rustflags = ["-C", "link-arg=-fuse-ld=lld"]

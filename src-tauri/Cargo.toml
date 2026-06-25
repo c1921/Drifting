@@ -23,6 +23,13 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.2", features = [] }
 tauri-plugin-log = "2"
-bevy = { version = "0.19", default-features = false }
+bevy_ecs = "0.19"
 rand = "0.8"
 noise = "0.9"
+
+# ── 开发 profile：提升调试构建的运行时性能 ──
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

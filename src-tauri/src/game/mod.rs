@@ -3,7 +3,9 @@ pub mod resources;
 pub mod systems;
 pub mod map;
 
-use bevy::prelude::*;
+use bevy_ecs::entity::Entity;
+use bevy_ecs::resource::Resource;
+use bevy_ecs::world::World;
 use rand::Rng;
 use serde::Serialize;
 

@@ -6,6 +6,7 @@
 export interface ContourData {
   points: number[] // flattened [x, y, x, y, ...]
   closed: boolean  // 是否为闭合环
+  level: number    // 该等高线对应的高度阈值 (0~1)
 }
 
 /** 网格采样参数：控制每多少个像素采一个样点 */
@@ -143,6 +144,7 @@ export function extractContours(
     const polylines = connectSegments(segments)
     for (const pl of polylines) {
       if (pl.points.length >= 6) {
+        pl.level = level
         result.push(pl)
       }
     }
@@ -277,7 +279,7 @@ function connectSegments(segments: [number, number, number, number][]): ContourD
       flat.push(p[0], p[1])
     }
 
-    result.push({ points: flat, closed })
+    result.push({ points: flat, closed, level: 0 })
   }
 
   return result

@@ -136,9 +136,9 @@ fn generate_heightmap(seed: u32) -> Vec<f64> {
                 frequency *= LACUNARITY;
             }
 
-            // 归一化到 0~1
+            // 归一化到 0~1，再应用乘方映射使更多地形落入低海拔
             let normalized = (value / max_amplitude + 1.0) * 0.5;
-            let clamped = normalized.clamp(0.0, 1.0);
+            let clamped = normalized.clamp(0.0, 1.0).powf(3.0);
             heights.push(clamped);
         }
     }
@@ -191,17 +191,17 @@ fn generate_locations(heights: &[f64], seed: u32) -> Vec<LocationData> {
         let py = loc_rng.gen_range(40..MAP_HEIGHT - 40);
         let h = get_height(heights, px, py);
 
-        // 跳过过高海拔（>0.50 不适合定居）
-        if h >= 0.50 {
+        // 仅限低海拔平原（<0.10）
+        if h >= 0.10 {
             continue;
         }
 
-        // 检查间距（至少 90 世界单位）
+        // 检查间距（至少 40 世界单位）
         let (wx, wy) = pixel_to_world(px, py);
         let too_close = locations.iter().any(|l: &LocationData| {
             let dx = l.x - wx;
             let dy = l.y - wy;
-            (dx * dx + dy * dy) < 8100.0 // 90^2
+            (dx * dx + dy * dy) < 1600.0 // 40^2
         });
         if too_close {
             continue;

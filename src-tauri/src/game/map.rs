@@ -281,58 +281,304 @@ fn pick_name(loc_type: &LocationType, rng: &mut impl Rng) -> String {
     pool[idx].to_string()
 }
 
-// ── 道路生成（基于地形的 A* 寻路） ──────────────
+// ── 分层道路网络生成 ──────────────────────────────
 
-/// 连接地点：最近邻图（每个点连最近的 2~3 个邻居）
-fn generate_roads(locations: &[LocationData], heights: &[f64]) -> Vec<RoadData> {
-    let mut roads = Vec::new();
-    let mut edges = Vec::new(); // (dist, i, j)
+/// 并查集（Union-Find），用于最小生成树
+struct UnionFind {
+    parent: Vec<usize>,
+    rank: Vec<usize>,
+}
 
-    for i in 0..locations.len() {
-        for j in (i + 1)..locations.len() {
-            let dx = locations[i].x - locations[j].x;
-            let dy = locations[i].y - locations[j].y;
-            let dist = (dx * dx + dy * dy).sqrt();
-            edges.push((dist, i, j));
+impl UnionFind {
+    fn new(n: usize) -> Self {
+        Self {
+            parent: (0..n).collect(),
+            rank: vec![0; n],
         }
     }
 
-    edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    fn find(&mut self, x: usize) -> usize {
+        if self.parent[x] != x {
+            self.parent[x] = self.find(self.parent[x]);
+        }
+        self.parent[x]
+    }
 
-    // 每个点记录已连接的邻居数
-    let mut connection_count = vec![0u32; locations.len()];
+    /// 合并两个集合，返回 true 表示合并成功（原本不连通）
+    fn union(&mut self, x: usize, y: usize) -> bool {
+        let rx = self.find(x);
+        let ry = self.find(y);
+        if rx == ry {
+            return false;
+        }
+        if self.rank[rx] < self.rank[ry] {
+            self.parent[rx] = ry;
+        } else if self.rank[rx] > self.rank[ry] {
+            self.parent[ry] = rx;
+        } else {
+            self.parent[ry] = rx;
+            self.rank[rx] += 1;
+        }
+        true
+    }
+}
 
-    for &(_dist, i, j) in &edges {
-        if connection_count[i] >= 3 || connection_count[j] >= 3 {
+/// 尝试添加一条道路，若两端未超过连接上限则成功
+fn try_add_road(
+    roads: &mut Vec<RoadData>,
+    conn: &mut [u32],
+    locations: &[LocationData],
+    heights: &[f64],
+    i: usize,
+    j: usize,
+) -> bool {
+    let max_i = match locations[i].loc_type {
+        LocationType::Large => 5,
+        LocationType::Medium => 3,
+        LocationType::Small => 2,
+    };
+    let max_j = match locations[j].loc_type {
+        LocationType::Large => 5,
+        LocationType::Medium => 3,
+        LocationType::Small => 2,
+    };
+    if conn[i] >= max_i || conn[j] >= max_j {
+        return false;
+    }
+    let road = create_road_segment(
+        locations[i].x, locations[i].y,
+        locations[j].x, locations[j].y,
+        heights,
+    );
+    roads.push(road);
+    conn[i] += 1;
+    conn[j] += 1;
+    true
+}
+
+/// 分层生成道路网络：
+///   Level 1（主干道）— Large 城市之间用 MST 连接 + 额外 1~2 条冗余环路
+///   Level 2（次级路）— Medium 小镇连接到最近且有容量的 Large 城市
+///   Level 3（支路）  — Small 村庄连接到最近且有容量的 Medium/Large
+///   兜底              — 给仍有孤立点的节点连到最近邻居
+fn generate_roads(locations: &[LocationData], heights: &[f64]) -> Vec<RoadData> {
+    let n = locations.len();
+    if n <= 1 {
+        return Vec::new();
+    }
+
+    let mut roads = Vec::new();
+    let mut conn = vec![0u32; n];
+
+    // 预处理所有欧几里得距离
+    let mut dist = vec![vec![0.0f64; n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            let dx = locations[i].x - locations[j].x;
+            let dy = locations[i].y - locations[j].y;
+            dist[i][j] = (dx * dx + dy * dy).sqrt();
+        }
+    }
+
+    // 按类型分组索引
+    let large: Vec<usize> = (0..n)
+        .filter(|i| matches!(locations[*i].loc_type, LocationType::Large))
+        .collect();
+    let medium: Vec<usize> = (0..n)
+        .filter(|i| matches!(locations[*i].loc_type, LocationType::Medium))
+        .collect();
+    let small: Vec<usize> = (0..n)
+        .filter(|i| matches!(locations[*i].loc_type, LocationType::Small))
+        .collect();
+
+    // ── Level 1：主干道（Large 城市间 MST + 冗余环路） ──────
+    if large.len() >= 2 {
+        let mut edges: Vec<(f64, usize, usize)> = Vec::new();
+        for a in 0..large.len() {
+            for b in (a + 1)..large.len() {
+                edges.push((dist[large[a]][large[b]], large[a], large[b]));
+            }
+        }
+        edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+        // MST 确保所有 Large 城市连通
+        let mut uf = UnionFind::new(n);
+        let target = large.len() - 1;
+        let mut added = 0;
+        for &(_d, i, j) in &edges {
+            if added >= target {
+                break;
+            }
+            if uf.union(i, j) {
+                if try_add_road(&mut roads, &mut conn, locations, heights, i, j) {
+                    added += 1;
+                }
+            }
+        }
+
+        // 补充 1~2 条最短冗余边，形成环路
+        let extra_target = (large.len() / 4).max(1).min(2);
+        let mut extra = 0;
+        for &(_d, i, j) in &edges {
+            if extra >= extra_target {
+                break;
+            }
+            if try_add_road(&mut roads, &mut conn, locations, heights, i, j) {
+                extra += 1;
+            }
+        }
+    }
+
+    // 收集主干道路网，供后续接入
+    let level1_roads: Vec<RoadData> = roads.clone();
+
+    // ── Level 2：次级路（Medium → 接入主干道，兜底 Large） ──
+    for &m in &medium {
+        if conn[m] >= 3 {
             continue;
         }
 
-        // 基于地形的 A* 寻路
-        let road = create_road_segment(&locations[i], &locations[j], heights);
-        roads.push(road);
-        connection_count[i] += 1;
-        connection_count[j] += 1;
+        // 优先接入主干道（最近点）
+        if let Some((nx, ny)) = nearest_point_on_roads(&level1_roads, locations[m].x, locations[m].y) {
+            let road = create_road_segment(
+                locations[m].x, locations[m].y,
+                nx, ny,
+                heights,
+            );
+            roads.push(road);
+            conn[m] += 1;
+            continue;
+        }
+
+        // 回退：连到最近且有容量的 Large
+        let mut best: Option<usize> = None;
+        let mut best_d = f64::MAX;
+        for &l in &large {
+            if conn[l] >= 5 {
+                continue;
+            }
+            let d = dist[m][l];
+            if d < best_d {
+                best_d = d;
+                best = Some(l);
+            }
+        }
+        if let Some(l) = best {
+            try_add_road(&mut roads, &mut conn, locations, heights, m, l);
+        }
     }
 
-    // 给孤立点至少一条连接
-    for i in 0..locations.len() {
-        if connection_count[i] == 0 {
-            // 找最近的点
-            let mut best_dist = f64::MAX;
-            let mut best_j = 0;
-            for j in 0..locations.len() {
-                if i == j { continue; }
-                let dx = locations[i].x - locations[j].x;
-                let dy = locations[i].y - locations[j].y;
-                let dist = (dx * dx + dy * dy).sqrt();
-                if dist < best_dist {
-                    best_dist = dist;
-                    best_j = j;
+    // ── Level 3：支路（Small → 接入主干道，兜底 Medium/Large） ──
+    for &s in &small {
+        if conn[s] >= 2 {
+            continue;
+        }
+
+        // 优先接入主干道
+        if let Some((nx, ny)) = nearest_point_on_roads(&level1_roads, locations[s].x, locations[s].y) {
+            let road = create_road_segment(
+                locations[s].x, locations[s].y,
+                nx, ny,
+                heights,
+            );
+            roads.push(road);
+            conn[s] += 1;
+            continue;
+        }
+
+        // 优先找最近且有容量的 Medium
+        let mut best: Option<usize> = None;
+        let mut best_d = f64::MAX;
+        for &m in &medium {
+            if conn[m] >= 3 {
+                continue;
+            }
+            let d = dist[s][m];
+            if d < best_d {
+                best_d = d;
+                best = Some(m);
+            }
+        }
+        // Medium 不可用时找 Large
+        if best.is_none() {
+            best_d = f64::MAX;
+            for &l in &large {
+                if conn[l] >= 5 {
+                    continue;
+                }
+                let d = dist[s][l];
+                if d < best_d {
+                    best_d = d;
+                    best = Some(l);
                 }
             }
-            let road = create_road_segment(&locations[i], &locations[best_j], heights);
+        }
+        if let Some(target) = best {
+            try_add_road(&mut roads, &mut conn, locations, heights, s, target);
+        }
+    }
+
+    // ── 兜底：确保没有孤立节点（优先接入主干道） ──────
+    for i in 0..n {
+        if conn[i] > 0 {
+            continue;
+        }
+
+        // 优先接入主干道
+        if let Some((nx, ny)) = nearest_point_on_roads(&level1_roads, locations[i].x, locations[i].y) {
+            let road = create_road_segment(
+                locations[i].x, locations[i].y,
+                nx, ny,
+                heights,
+            );
             roads.push(road);
-            connection_count[i] += 1;
+            conn[i] += 1;
+            continue;
+        }
+
+        // 找最近且有容量的节点
+        let mut best: Option<usize> = None;
+        let mut best_d = f64::MAX;
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            let max_j = match locations[j].loc_type {
+                LocationType::Large => 5,
+                LocationType::Medium => 3,
+                LocationType::Small => 2,
+            };
+            if conn[j] >= max_j {
+                continue;
+            }
+            let d = dist[i][j];
+            if d < best_d {
+                best_d = d;
+                best = Some(j);
+            }
+        }
+        if let Some(j) = best {
+            try_add_road(&mut roads, &mut conn, locations, heights, i, j);
+        } else {
+            // 终极兜底：忽略容量限制
+            let mut j = if i == 0 { 1 } else { 0 };
+            let mut best_d = dist[i][j];
+            for k in 0..n {
+                if k == i {
+                    continue;
+                }
+                if dist[i][k] < best_d {
+                    best_d = dist[i][k];
+                    j = k;
+                }
+            }
+            let road = create_road_segment(
+                locations[i].x, locations[i].y,
+                locations[j].x, locations[j].y,
+                heights,
+            );
+            roads.push(road);
+            conn[i] += 1;
         }
     }
 
@@ -498,12 +744,55 @@ fn rdp_simplify(points: &[(f64, f64)], epsilon: f64) -> Vec<(f64, f64)> {
     }
 }
 
+// ── 道路几何工具 ──────────────────────────────────
+
+/// 在道路折线集合中找出离 (px,py) 最近的点
+fn nearest_point_on_roads(roads: &[RoadData], px: f64, py: f64) -> Option<(f64, f64)> {
+    let mut best: Option<(f64, f64)> = None;
+    let mut best_d2 = f64::MAX;
+
+    for road in roads {
+        let pts = &road.points;
+        // road.points 是扁平数组 [x1,y1,x2,y2,...]
+        for i in (0..pts.len().saturating_sub(3)).step_by(2) {
+            let ax = pts[i];
+            let ay = pts[i + 1];
+            let bx = pts[i + 2];
+            let by = pts[i + 3];
+
+            let seg_dx = bx - ax;
+            let seg_dy = by - ay;
+            let len_sq = seg_dx * seg_dx + seg_dy * seg_dy;
+
+            let (nx, ny) = if len_sq < 1e-10 {
+                (ax, ay)
+            } else {
+                let t = ((px - ax) * seg_dx + (py - ay) * seg_dy) / len_sq;
+                let t = t.clamp(0.0, 1.0);
+                (ax + t * seg_dx, ay + t * seg_dy)
+            };
+
+            let d2 = (px - nx).powi(2) + (py - ny).powi(2);
+            if d2 < best_d2 {
+                best_d2 = d2;
+                best = Some((nx, ny));
+            }
+        }
+    }
+
+    best
+}
+
 // ── 创建单条道路 ──────────────────────────────────
 
-/// 基于地形的 A* 寻路创建两点间的道路折线
-fn create_road_segment(a: &LocationData, b: &LocationData, heights: &[f64]) -> RoadData {
-    let start_px = world_to_pixel(a.x, a.y);
-    let end_px = world_to_pixel(b.x, b.y);
+/// 基于地形的 A* 寻路创建两点间的道路折线（坐标参数）
+fn create_road_segment(
+    from_x: f64, from_y: f64,
+    to_x: f64, to_y: f64,
+    heights: &[f64],
+) -> RoadData {
+    let start_px = world_to_pixel(from_x, from_y);
+    let end_px = world_to_pixel(to_x, to_y);
 
     if let Some(pixel_path) = a_star_path(heights, start_px, end_px) {
         let world_path: Vec<(f64, f64)> = pixel_path
@@ -513,24 +802,24 @@ fn create_road_segment(a: &LocationData, b: &LocationData, heights: &[f64]) -> R
 
         let simplified = rdp_simplify(&world_path, 3.0);
 
-        // 确保首尾点精确等于地点坐标（补偿像素取整误差）
+        // 确保首尾点精确等于端点坐标（补偿像素取整误差）
         let mut points = Vec::with_capacity(simplified.len() * 2 + 4);
-        points.push((a.x * 10.0).round() / 10.0);
-        points.push((a.y * 10.0).round() / 10.0);
+        points.push((from_x * 10.0).round() / 10.0);
+        points.push((from_y * 10.0).round() / 10.0);
         for &(x, y) in &simplified[1..simplified.len().saturating_sub(1)] {
             points.push((x * 10.0).round() / 10.0);
             points.push((y * 10.0).round() / 10.0);
         }
-        points.push((b.x * 10.0).round() / 10.0);
-        points.push((b.y * 10.0).round() / 10.0);
+        points.push((to_x * 10.0).round() / 10.0);
+        points.push((to_y * 10.0).round() / 10.0);
 
         RoadData { points }
     } else {
         // 回退：直接直线 + 控制点
-        let mid_x = (a.x + b.x) / 2.0;
-        let mid_y = (a.y + b.y) / 2.0;
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
+        let mid_x = (from_x + to_x) / 2.0;
+        let mid_y = (from_y + to_y) / 2.0;
+        let dx = to_x - from_x;
+        let dy = to_y - from_y;
         let len = (dx * dx + dy * dy).sqrt().max(1.0);
         let perp_x = -dy / len;
         let perp_y = dx / len;
@@ -542,14 +831,14 @@ fn create_road_segment(a: &LocationData, b: &LocationData, heights: &[f64]) -> R
 
         RoadData {
             points: vec![
-                (a.x * 10.0).round() / 10.0,
-                (a.y * 10.0).round() / 10.0,
+                (from_x * 10.0).round() / 10.0,
+                (from_y * 10.0).round() / 10.0,
                 (cp1x * 10.0).round() / 10.0,
                 (cp1y * 10.0).round() / 10.0,
                 (cp2x * 10.0).round() / 10.0,
                 (cp2y * 10.0).round() / 10.0,
-                (b.x * 10.0).round() / 10.0,
-                (b.y * 10.0).round() / 10.0,
+                (to_x * 10.0).round() / 10.0,
+                (to_y * 10.0).round() / 10.0,
             ],
         }
     }

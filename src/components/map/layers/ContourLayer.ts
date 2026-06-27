@@ -40,7 +40,7 @@ export function createContourLayer(
     g.closePath()
 
     // 填充 + 描边（基于实际高度 level 而非数组索引）
-    const t = (c.level - 0.2) / 0.6  // 将 level 0.2~0.8 归一化到 0~1
+    const t = (c.level - 0.1) / 0.7  // 将 level 0.1~0.8 归一化到 0~1
     const alpha = 0.04 + t * 0.06
     g.fill({ color: colors.mutedForeground, alpha })
     g.stroke({

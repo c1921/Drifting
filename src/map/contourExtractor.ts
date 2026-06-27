@@ -24,7 +24,7 @@ export function extractContours(
   heightmap: Float32Array | number[],
   width: number,
   height: number,
-  levels: number[] = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+  levels: number[] = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
 ): ContourData[] {
   const hArr = heightmap instanceof Float32Array ? heightmap : new Float32Array(heightmap)
   const result: ContourData[] = []

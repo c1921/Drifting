@@ -11,6 +11,7 @@ import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
+  setHabitabilityVisible: (visible: boolean) => void
 }
 
 export async function createMap(
@@ -38,13 +39,17 @@ export async function createMap(
   }
 
   // ── Build layers ────────────────────────────────
+  let habLayer: Container | null = null
+
   function buildWorld(): Container {
     const colors = getThemeColors()
     const world = new Container()
 
     if (mapData) {
       // 层序：宜居度(底) → 等高线 → 省界 → 道路 → 地点(顶)
-      world.addChild(createHabitabilityLayer(mapData.habitability, mapData.width, mapData.height))
+      const habLayer_ = createHabitabilityLayer(mapData.habitability, mapData.width, mapData.height)
+      habLayer = habLayer_
+      world.addChild(habLayer_)
 
       // 从高度网格提取等高线
       const contours = extractContours(mapData.heightmap, mapData.width, mapData.height)
@@ -141,6 +146,9 @@ export async function createMap(
     destroy() {
       stopThemeWatch()
       app.destroy(true)
+    },
+    setHabitabilityVisible(visible: boolean) {
+      if (habLayer) habLayer.visible = visible
     },
   }
 }

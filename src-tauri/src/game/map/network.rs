@@ -37,35 +37,6 @@ pub(super) fn build_delaunay_edges(positions: &[(f64, f64)]) -> Vec<(usize, usiz
     edge_set.into_iter().collect()
 }
 
-/// 过滤长度超过中位数 3 倍的边
-pub(super) fn filter_long_edges(
-    edges: &[(usize, usize)],
-    positions: &[(f64, f64)],
-) -> Vec<(usize, usize)> {
-    let m = edges.len();
-    if m == 0 {
-        return Vec::new();
-    }
-
-    let mut edge_lengths: Vec<(f64, (usize, usize))> = edges.iter()
-        .map(|&(i, j)| {
-            let dx = positions[i].0 - positions[j].0;
-            let dy = positions[i].1 - positions[j].1;
-            let d = (dx * dx + dy * dy).sqrt();
-            (d, (i, j))
-        })
-        .collect();
-
-    edge_lengths.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
-    let median = edge_lengths[m / 2].0;
-    let threshold = median * 3.0;
-
-    edge_lengths.into_iter()
-        .filter(|&(d, _)| d <= threshold)
-        .map(|(_, e)| e)
-        .collect()
-}
-
 // ── 并查集 ──────────────────────────────────────
 
 struct UnionFind {

@@ -23,15 +23,15 @@ pub(crate) const WORLD_MAX: f64 = 800.0;
 // ── 地点生成参数 ──────────────────────────────────
 pub(crate) const CITY_COUNT: usize = 3;
 pub(crate) const TOWN_COUNT: usize = 20;
-pub(crate) const TOTAL_TARGET: usize = 120;
+pub(crate) const TOTAL_TARGET: usize = 180;
 
 // ── 地点间距约束（世界单位）─────────────────────────
-pub(crate) const DIST_CITY_CITY: f64 = 300.0;
-pub(crate) const DIST_CITY_TOWN: f64 = 80.0;
-pub(crate) const DIST_TOWN_TOWN: f64 = 80.0;
-pub(crate) const DIST_TOWN_VILLAGE: f64 = 10.0;
-pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 10.0;
-pub(crate) const DIST_VILLAGE_CITY: f64 = 15.0;
+pub(crate) const DIST_CITY_CITY: f64 = 240.0;
+pub(crate) const DIST_CITY_TOWN: f64 = 90.0;
+pub(crate) const DIST_TOWN_TOWN: f64 = 90.0;
+pub(crate) const DIST_TOWN_VILLAGE: f64 = 30.0;
+pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 30.0;
+pub(crate) const DIST_VILLAGE_CITY: f64 = 30.0;
 
 // ── 吸引力参数（采样偏向聚落中心，无硬性最大距离）─────
 pub(crate) const ATTRACT_NEAR_PROB: f64 = 0.85;
@@ -189,26 +189,20 @@ pub fn generate_map(seed: u32) -> MapData {
     // 4. Delaunay 三角剖分 → 候选边
     let mut edges = network::build_delaunay_edges(&positions);
 
-    // 5. 过滤长边（中位数 × 3）
-    edges = network::filter_long_edges(&edges, &positions);
-
-    // 6. 连通性兜底
-    edges = network::ensure_connectivity(&edges, &positions);
-
-    // 7. 过滤冗余边：删除存在替代路径且绕路不超过 30% 的边
+    // 5. 过滤冗余边：删除存在替代路径且绕路不超过 30% 的边
     let before = edges.len();
     edges = network::filter_redundant_edges(&edges, &positions);
     log::info!("Map [seed={}]: {} redundant edges removed ({} → {})",
         seed, before - edges.len(), before, edges.len());
 
-    // 8. 再次连通性兜底（冗余边删除后可能产生孤立分量）
+    // 6. 连通性兜底（冗余边删除后可能产生孤立分量）
     edges = network::ensure_connectivity(&edges, &positions);
 
-    // 9. 基于边集生成道路 (约束在边界内)
+    // 7. 基于边集生成道路 (约束在边界内)
     let roads = roads::generate_roads_from_edges(&locations, &edges, &heightmap, &boundary.mask);
     log::info!("Map [seed={}]: {} roads generated", seed, roads.len());
 
-    // 10. 扁平化边界多边形 (与 RoadData.points 格式一致)
+    // 8. 扁平化边界多边形 (与 RoadData.points 格式一致)
     let boundary_poly = boundary.polygon.clone();
 
     MapData {

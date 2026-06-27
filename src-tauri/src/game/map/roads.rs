@@ -7,6 +7,7 @@ pub(super) fn generate_roads_from_edges(
     locations: &[LocationData],
     edges: &[(usize, usize)],
     heights: &[f64],
+    boundary_mask: &[bool],
 ) -> Vec<RoadData> {
     let mut roads = Vec::with_capacity(edges.len());
 
@@ -15,6 +16,7 @@ pub(super) fn generate_roads_from_edges(
             locations[i].x, locations[i].y,
             locations[j].x, locations[j].y,
             heights,
+            boundary_mask,
         );
         roads.push(road);
     }
@@ -52,6 +54,7 @@ impl PartialOrd for AStarNode {
 
 fn a_star_path(
     heights: &[f64],
+    boundary_mask: &[bool],
     start: (u32, u32),
     goal: (u32, u32),
 ) -> Option<Vec<(u32, u32)>> {
@@ -103,6 +106,12 @@ fn a_star_path(
             let nu = nx as u32;
             let nv = ny as u32;
             let nidx = nv as usize * w + nu as usize;
+
+            // 跳过边界外的像素
+            if !boundary_mask[nidx] {
+                continue;
+            }
+
             let nh = heights[nidx];
 
             let dh = (nh - cur_h).abs();
@@ -122,6 +131,40 @@ fn a_star_path(
     }
 
     None
+}
+
+// ── 边界量化缝隙修复 ──────────────────────────────
+
+/// 若 (px, py) 不在边界掩码内，在逐步扩大的方形邻域内寻找最近界内像素。
+/// 找不到则原样返回(交由 A* 失败回退兜底)。
+fn snap_inside(boundary_mask: &[bool], p: (u32, u32)) -> (u32, u32) {
+    let w = MAP_WIDTH as usize;
+    let h = MAP_HEIGHT as usize;
+    let idx = |x: i32, y: i32| -> usize { (y as usize) * w + x as usize };
+
+    if p.0 < w as u32 && p.1 < h as u32 && boundary_mask[idx(p.0 as i32, p.1 as i32)] {
+        return p;
+    }
+
+    let max_r = 6i32;
+    for r in 1..=max_r {
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx.abs() != r && dy.abs() != r {
+                    continue; // 只扫外环
+                }
+                let nx = p.0 as i32 + dx;
+                let ny = p.1 as i32 + dy;
+                if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
+                    continue;
+                }
+                if boundary_mask[idx(nx, ny)] {
+                    return (nx as u32, ny as u32);
+                }
+            }
+        }
+    }
+    p
 }
 
 // ── RDP 路径简化 ──────────────────────────────────
@@ -181,11 +224,16 @@ fn create_road_segment(
     from_x: f64, from_y: f64,
     to_x: f64, to_y: f64,
     heights: &[f64],
+    boundary_mask: &[bool],
 ) -> RoadData {
     let start_px = heightmap::world_to_pixel(from_x, from_y);
     let end_px = heightmap::world_to_pixel(to_x, to_y);
 
-    if let Some(pixel_path) = a_star_path(heights, start_px, end_px) {
+    // 起点/终点可能落在 mask 外(浮多边形与像素量化缝隙)，就近 snap 到界内像素
+    let start_px = snap_inside(boundary_mask, start_px);
+    let end_px = snap_inside(boundary_mask, end_px);
+
+    if let Some(pixel_path) = a_star_path(heights, boundary_mask, start_px, end_px) {
         let world_path: Vec<(f64, f64)> = pixel_path
             .iter()
             .map(|&(px, py)| heightmap::pixel_to_world(px, py))

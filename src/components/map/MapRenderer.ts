@@ -2,6 +2,8 @@ import { Application, Container, Point } from "pixi.js"
 import { createContourLayer } from "./layers/ContourLayer"
 import { createRoadLayer } from "./layers/RoadLayer"
 import { createLocationLayer } from "./layers/LocationLayer"
+import { createBoundaryLayer } from "./layers/BoundaryLayer"
+import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
 import { extractContours } from "@/map/contourExtractor"
 import { getMap } from "@/api/map"
@@ -41,9 +43,16 @@ export async function createMap(
     const world = new Container()
 
     if (mapData) {
+      // 层序：宜居度(底) → 等高线 → 省界 → 道路 → 地点(顶)
+      world.addChild(createHabitabilityLayer(mapData.habitability, mapData.width, mapData.height))
+
       // 从高度网格提取等高线
       const contours = extractContours(mapData.heightmap, mapData.width, mapData.height)
       world.addChild(createContourLayer(contours, colors))
+
+      const boundaryLayer = createBoundaryLayer(mapData.boundary, colors)
+      if (boundaryLayer) world.addChild(boundaryLayer)
+
       world.addChild(createRoadLayer(mapData.roads, colors))
       world.addChild(createLocationLayer(mapData.locations, colors, options?.onLocationSelect))
     }

@@ -34,6 +34,7 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
 }
 
 /// 获取高度图上 (x, y) 处的高度值
+#[allow(dead_code)]
 pub(super) fn get_height(heights: &[f64], x: u32, y: u32) -> f64 {
     let idx = (y * MAP_WIDTH + x) as usize;
     heights[idx.min(heights.len() - 1)]

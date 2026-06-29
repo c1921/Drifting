@@ -11,6 +11,7 @@ export function createHabitabilityLayer(
   habitability: number[],
   width: number,
   height: number,
+  minHab: number,
 ): Container {
   const layer = new Container()
 
@@ -53,8 +54,7 @@ export function createHabitabilityLayer(
       const avg = grid[gIdx] / counts[gIdx]
       if (avg < 0.01) continue // 极低值跳过
 
-      // 颜色映射: 0→0x440000(暗红), 0.5→0x888800(黄褐), 1→0x22aa44(绿)
-      const color = heatColor(avg)
+      const color = heatColor(avg, minHab)
       const alpha = 0.15 + avg * 0.35 // 透明度随宜居度递增
 
       const wx = WORLD_MIN + gi * cellW
@@ -72,21 +72,21 @@ export function createHabitabilityLayer(
 /**
  * 宜居度 → 颜色
  * 低 (0.0): 暗红  0x441111
- * 中 (0.5): 黄褐  0x887722
+ * 中 (threshold): 黄褐  0x887722  (对应后端的 MIN_HAB)
  * 高 (1.0): 绿    0x33aa55
  */
-function heatColor(value: number): number {
+function heatColor(value: number, threshold: number): number {
   const v = Math.max(0, Math.min(1, value))
-  if (v < 0.5) {
-    // 0.0 → 0.5: 暗红 → 黄褐
-    const t = v / 0.5
+  if (v < threshold) {
+    // 0.0 → threshold: 暗红 → 黄褐
+    const t = v / threshold
     const r = Math.round(0x44 + (0x88 - 0x44) * t)
     const g = Math.round(0x11 + (0x77 - 0x11) * t)
     const b = Math.round(0x11 + (0x22 - 0x11) * t)
     return (r << 16) | (g << 8) | b
   } else {
-    // 0.5 → 1.0: 黄褐 → 绿
-    const t = (v - 0.5) / 0.5
+    // threshold → 1.0: 黄褐 → 绿
+    const t = (v - threshold) / (1.0 - threshold)
     const r = Math.round(0x88 - 0x88 * t)
     const g = Math.round(0x77 + (0xaa - 0x77) * t)
     const b = Math.round(0x22 + (0x55 - 0x22) * t)

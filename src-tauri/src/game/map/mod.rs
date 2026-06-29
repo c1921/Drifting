@@ -50,6 +50,7 @@ pub(crate) const MAX_RAD_PX: f64 = 64.0;
 pub(crate) const W_ALT: f64 = 0.30;
 pub(crate) const W_SLP: f64 = 0.20;
 pub(crate) const W_RAD: f64 = 0.50;
+pub(crate) const MIN_HAB: f32 = 0.85;
 
 // ── 数据结构 ──────────────────────────────────────
 
@@ -87,6 +88,7 @@ pub struct MapData {
     pub boundary: Vec<f64>,       // 扁平 [x0,y0,x1,y1,...] 世界坐标闭合环
     pub locations: Vec<LocationData>,
     pub roads: Vec<RoadData>,
+    pub min_hab: f32,             // 宜居度硬阈值，仅高于此值的像素才能建城
 }
 
 // ── 名称池（按地点规模分级）────────────────────
@@ -211,5 +213,6 @@ pub fn generate_map(seed: u32) -> MapData {
         boundary: boundary_poly,
         locations,
         roads,
+        min_hab: MIN_HAB,
     }
 }

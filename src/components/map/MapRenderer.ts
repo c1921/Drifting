@@ -55,7 +55,7 @@ export async function createMap(
       heightLayer = heightLayer_
       world.addChild(heightLayer_)
 
-      const habLayer_ = createHabitabilityLayer(map.habitability, map.width, map.height)
+      const habLayer_ = createHabitabilityLayer(map.habitability, map.width, map.height, map.min_hab)
       habLayer = habLayer_
       world.addChild(habLayer_)
 

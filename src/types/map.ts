@@ -20,4 +20,5 @@ export interface MapData {
   boundary: number[] // flattened [x0,y0,x1,y1,...] world-coord closed ring
   locations: LocationData[]
   roads: RoadData[]
+  min_hab: number
 }

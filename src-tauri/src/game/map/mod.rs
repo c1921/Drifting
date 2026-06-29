@@ -46,7 +46,6 @@ pub(crate) const FLAT_THRESHOLD: f64 = 0.10;
 
 // ── 地形参数 ────────────────────────────────────
 pub(crate) const SLOPE_STEEP: f64 = 0.025;
-pub(crate) const MAX_RAD_PX: f64 = 64.0;
 pub(crate) const W_ALT: f64 = 0.30;     // 宜居度：海拔权重
 pub(crate) const W_SLP: f64 = 0.20;     // 宜居度：坡度权重
 pub(crate) const W_RAD: f64 = 0.50;     // 城市综合分：平坦中心度权重

@@ -1,9 +1,10 @@
-use super::{MAP_WIDTH, MAP_HEIGHT, SLOPE_STEEP, MAX_RAD_PX, W_ALT, W_SLP};
+use super::{MAP_WIDTH, MAP_HEIGHT, SLOPE_STEEP, W_ALT, W_SLP};
 
 /// 预计算平坦区域中心度 (512×512, 0.0~1.0)
 ///
-/// 值越高表示像素位于越大的平坦区域的中心位置。
-/// 通过 Sobel 梯度 → 坡度 → 陡坡掩码 → Chamfer distance transform 计算。
+/// 对每个连通平坦区域，计算像素到区域边界的距离，在区域内归一化。
+/// 平坦区域几何中心 = 1.0，边缘 = 0.0，非平坦区域 = 0.0。
+/// 方法: Sobel 梯度 → 坡度 → 平坦边界种子 → Chamfer distance → 逐连通分量归一化
 pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
     let w = MAP_WIDTH as usize;
     let h = MAP_HEIGHT as usize;
@@ -15,7 +16,6 @@ pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
         for x in 0..w {
             let idx = y * w + x;
 
-            // Sobel X
             let mut gx = 0.0;
             if x > 0 && x < w - 1 {
                 let row_up = if y > 0 { y - 1 } else { y };
@@ -26,10 +26,9 @@ pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
                     + heights[y * w + x - 1] * 2.0
                     + heights[row_dn * w + x + 1] * -1.0
                     + heights[row_dn * w + x - 1] * 1.0;
-                gx /= 4.0; // normalize
+                gx /= 4.0;
             }
 
-            // Sobel Y
             let mut gy = 0.0;
             if y > 0 && y < h - 1 {
                 let col_l = if x > 0 { x - 1 } else { x };
@@ -47,78 +46,100 @@ pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
         }
     }
 
-    // 2. 陡坡掩码 & 距离变换初始化
     const INF: i32 = i32::MAX / 4;
-    let steep_threshold = SLOPE_STEEP;
+    let steep = SLOPE_STEEP;
+
+    // 2. 平坦区域掩码 & 边界种子初始化
+    let mut flat = vec![false; total];
+    for i in 0..total {
+        flat[i] = slope[i] <= steep;
+    }
+
     let mut dist = vec![INF; total];
-    for (i, &s) in slope.iter().enumerate() {
-        if s > steep_threshold {
-            dist[i] = 0; // 种子点: 陡坡自身距离为0
+    for y in 0..h {
+        for x in 0..w {
+            let idx = y * w + x;
+            if !flat[idx] { continue; }
+
+            // 4-邻域检查是否位于平坦区域边界
+            let on_boundary =
+                (y > 0     && !flat[(y - 1) * w + x])
+                || (y + 1 < h && !flat[(y + 1) * w + x])
+                || (x > 0     && !flat[y * w + (x - 1)])
+                || (x + 1 < w && !flat[y * w + (x + 1)]);
+
+            if on_boundary {
+                dist[idx] = 0; // 边界种子: 到自身距离为0
+            }
         }
     }
 
-    // 3. Chamfer distance transform (3-4 kernel)
-    //    前向: 左上 → 右下
+    // 3. Chamfer distance transform (3-4 kernel) — 测量到平坦边界的距离
     for y in 0..h {
         for x in 0..w {
             let idx = y * w + x;
             let mut best = dist[idx];
-            // 正北 (y-1, x)
-            if y > 0 {
-                best = best.min(dist[(y - 1) * w + x].saturating_add(3));
-            }
-            // 正西 (y, x-1)
-            if x > 0 {
-                best = best.min(dist[y * w + (x - 1)].saturating_add(3));
-            }
-            // 西北 (y-1, x-1)
-            if y > 0 && x > 0 {
-                best = best.min(dist[(y - 1) * w + (x - 1)].saturating_add(4));
-            }
-            // 东北 (y-1, x+1)
-            if y > 0 && x + 1 < w {
-                best = best.min(dist[(y - 1) * w + (x + 1)].saturating_add(4));
-            }
+            if y > 0 { best = best.min(dist[(y - 1) * w + x].saturating_add(3)); }
+            if x > 0 { best = best.min(dist[y * w + (x - 1)].saturating_add(3)); }
+            if y > 0 && x > 0 { best = best.min(dist[(y - 1) * w + (x - 1)].saturating_add(4)); }
+            if y > 0 && x + 1 < w { best = best.min(dist[(y - 1) * w + (x + 1)].saturating_add(4)); }
             dist[idx] = best;
         }
     }
-
-    //    后向: 右下 → 左上
     for y in (0..h).rev() {
         for x in (0..w).rev() {
             let idx = y * w + x;
             let mut best = dist[idx];
-            // 正南 (y+1, x)
-            if y + 1 < h {
-                best = best.min(dist[(y + 1) * w + x].saturating_add(3));
-            }
-            // 正东 (y, x+1)
-            if x + 1 < w {
-                best = best.min(dist[y * w + (x + 1)].saturating_add(3));
-            }
-            // 东南 (y+1, x+1)
-            if y + 1 < h && x + 1 < w {
-                best = best.min(dist[(y + 1) * w + (x + 1)].saturating_add(4));
-            }
-            // 西南 (y+1, x-1)
-            if y + 1 < h && x > 0 {
-                best = best.min(dist[(y + 1) * w + (x - 1)].saturating_add(4));
-            }
+            if y + 1 < h { best = best.min(dist[(y + 1) * w + x].saturating_add(3)); }
+            if x + 1 < w { best = best.min(dist[y * w + (x + 1)].saturating_add(3)); }
+            if y + 1 < h && x + 1 < w { best = best.min(dist[(y + 1) * w + (x + 1)].saturating_add(4)); }
+            if y + 1 < h && x > 0 { best = best.min(dist[(y + 1) * w + (x - 1)].saturating_add(4)); }
             dist[idx] = best;
         }
     }
 
-    // 4. 归一化 distance → 平坦中心度 (0..1)
-    let max_rad = MAX_RAD_PX;
-    let scale = 3.0;
+    // 4. 逐连通分量归一化：每个平坦区域内，中心=1.0，边界=0.0
     let mut flat_center = vec![0.0f32; total];
-    for (i, &d) in dist.iter().enumerate() {
-        if d >= INF / 2 {
-            flat_center[i] = 1.0;
-        } else {
-            let real_dist = d as f64 / scale;
-            let norm = (real_dist / max_rad).min(1.0);
-            flat_center[i] = norm as f32;
+    let mut visited = vec![false; total];
+
+    for start in 0..total {
+        if !flat[start] || visited[start] { continue; }
+
+        // BFS 收集连通分量
+        let mut component: Vec<usize> = Vec::new();
+        let mut queue: Vec<usize> = vec![start];
+        visited[start] = true;
+
+        while let Some(idx) = queue.pop() {
+            component.push(idx);
+            let (cy, cx) = (idx / w, idx % w);
+
+            // 4-邻域入队
+            if cy > 0     { let nxt = (cy - 1) * w + cx; if flat[nxt] && !visited[nxt] { visited[nxt] = true; queue.push(nxt); } }
+            if cy + 1 < h { let nxt = (cy + 1) * w + cx; if flat[nxt] && !visited[nxt] { visited[nxt] = true; queue.push(nxt); } }
+            if cx > 0     { let nxt = cy * w + (cx - 1); if flat[nxt] && !visited[nxt] { visited[nxt] = true; queue.push(nxt); } }
+            if cx + 1 < w { let nxt = cy * w + (cx + 1); if flat[nxt] && !visited[nxt] { visited[nxt] = true; queue.push(nxt); } }
+        }
+
+        // 找分量内最大距离
+        let max_d = component.iter()
+            .filter_map(|&i| {
+                let d = dist[i];
+                if d < INF / 2 { Some(d) } else { None }
+            })
+            .max()
+            .unwrap_or(0)
+            .max(1); // 避免除零
+
+        // 归一化
+        for &i in &component {
+            let d = dist[i];
+            if d < INF / 2 {
+                flat_center[i] = (d as f32) / (max_d as f32);
+            } else {
+                // 孤立平坦像素（无边界面可达）：中心度视为满分
+                flat_center[i] = 1.0;
+            }
         }
     }
 

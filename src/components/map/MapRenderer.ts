@@ -5,6 +5,7 @@ import { createLocationLayer } from "./layers/LocationLayer"
 import { createBoundaryLayer } from "./layers/BoundaryLayer"
 import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
 import { createFlatCenterLayer } from "./layers/FlatCenterLayer"
+import { createRegionLayer } from "./layers/RegionLayer"
 import { createHeightmapLayer } from "./layers/HeightmapLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
 import { extractContours } from "@/map/contourExtractor"
@@ -13,7 +14,7 @@ import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
-  setOverlayMode: (mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours') => void
+  setOverlayMode: (mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours' | 'regions') => void
   regenerate: () => Promise<void>
 }
 
@@ -46,6 +47,7 @@ export async function createMap(
   let flatCenterLayer: Container | null = null
   let heightLayer: Container | null = null
   let contourLayer: Container | null = null
+  let regionLayer: Container | null = null
 
   function buildWorld(map: import("@/types/map").MapData | null): Container {
     const colors = getThemeColors()
@@ -73,6 +75,10 @@ export async function createMap(
 
       const boundaryLayer = createBoundaryLayer(map.boundary, colors)
       if (boundaryLayer) world.addChild(boundaryLayer)
+
+      const regionLayer_ = createRegionLayer(map.regions)
+      regionLayer = regionLayer_
+      if (regionLayer_) world.addChild(regionLayer_)
 
       world.addChild(createRoadLayer(map.roads, colors))
       world.addChild(createLocationLayer(map.locations, colors, options?.onLocationSelect))
@@ -163,15 +169,17 @@ export async function createMap(
       stopThemeWatch()
       app.destroy(true)
     },
-    setOverlayMode(mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours') {
+    setOverlayMode(mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours' | 'regions') {
       const showHab = mode === 'habitability'
       const showFlatCenter = mode === 'flatCenter'
       const showHeight = mode === 'heightmap'
       const showContour = mode === 'contours'
+      const showRegion = mode === 'regions'
       if (habLayer) habLayer.visible = showHab
       if (flatCenterLayer) flatCenterLayer.visible = showFlatCenter
       if (heightLayer) heightLayer.visible = showHeight
       if (contourLayer) contourLayer.visible = showContour
+      if (regionLayer) regionLayer.visible = showRegion
     },
     async regenerate() {
       try {

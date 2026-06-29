@@ -4,9 +4,12 @@ mod network;
 mod roads;
 mod boundary;
 mod habitability;
+mod regions;
 
 use rand::Rng;
 use serde::Serialize;
+
+use regions::RegionData;
 
 // ── 地图常量 ──────────────────────────────────────
 pub const MAP_WIDTH: u32 = 512;
@@ -50,6 +53,8 @@ pub(crate) const W_ALT: f64 = 0.30;     // 宜居度：海拔权重
 pub(crate) const W_SLP: f64 = 0.20;     // 宜居度：坡度权重
 pub(crate) const W_RAD: f64 = 0.50;     // 城市综合分：平坦中心度权重
 pub(crate) const MIN_HAB: f32 = 0.85;
+pub(crate) const REGION_INITIAL_COUNT: usize = 20;
+pub(crate) const REGION_DOMINANCE_RATIO: f64 = 0.8;
 
 // ── 数据结构 ──────────────────────────────────────
 
@@ -88,6 +93,7 @@ pub struct MapData {
     pub boundary: Vec<f64>,       // 扁平 [x0,y0,x1,y1,...] 世界坐标闭合环
     pub locations: Vec<LocationData>,
     pub roads: Vec<RoadData>,
+    pub regions: Vec<RegionData>,
     pub min_hab: f32,             // 宜居度硬阈值，仅高于此值的像素才能建城
 }
 
@@ -135,6 +141,9 @@ pub fn generate_map(seed: u32) -> MapData {
     // 1b. 预计算宜居度和平坦区域中心度（后者基于宜居度栅格）
     let habitability = habitability::compute_habitability(&heightmap);
     let flat_center = habitability::compute_flat_center(&habitability);
+
+    // 1b2. 基于高宜居度区域划分地区
+    let regions = regions::compute_regions(&habitability, seed);
 
     // 1c. 城市综合分：宜居度 + 平坦中心度（城市额外参考）
     let hab_weight = (W_ALT + W_SLP) as f32;
@@ -223,6 +232,7 @@ pub fn generate_map(seed: u32) -> MapData {
         boundary: boundary_poly,
         locations,
         roads,
+        regions,
         min_hab: MIN_HAB,
     }
 }

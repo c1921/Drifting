@@ -2,7 +2,7 @@ import { Container, Graphics } from "pixi.js"
 import type { ThemeColors } from "../utils/themeUtils"
 
 /**
- * 边界图层：绘制省界多边形（半透明填充 + 描边）
+ * 边界图层：绘制省界多边形
  * 在世界坐标系直接绘制，与 ContourLayer 一致。
  */
 export function createBoundaryLayer(
@@ -21,8 +21,7 @@ export function createBoundaryLayer(
   }
   g.closePath()
 
-  // 半透明填充 + 描边
-  g.fill({ color: colors.primary, alpha: 0.08 })
+  // 描边
   g.stroke({ width: 2.0, color: colors.primary, alpha: 0.5 })
 
   layer.addChild(g)

@@ -54,7 +54,7 @@ impl PartialOrd for AStarNode {
 
 fn a_star_path(
     heights: &[f64],
-    boundary_mask: &[bool],
+    _boundary_mask: &[bool],
     start: (u32, u32),
     goal: (u32, u32),
 ) -> Option<Vec<(u32, u32)>> {
@@ -107,11 +107,6 @@ fn a_star_path(
             let nv = ny as u32;
             let nidx = nv as usize * w + nu as usize;
 
-            // 跳过边界外的像素
-            if !boundary_mask[nidx] {
-                continue;
-            }
-
             let nh = heights[nidx];
 
             let dh = (nh - cur_h).abs();
@@ -135,35 +130,8 @@ fn a_star_path(
 
 // ── 边界量化缝隙修复 ──────────────────────────────
 
-/// 若 (px, py) 不在边界掩码内，在逐步扩大的方形邻域内寻找最近界内像素。
-/// 找不到则原样返回(交由 A* 失败回退兜底)。
-fn snap_inside(boundary_mask: &[bool], p: (u32, u32)) -> (u32, u32) {
-    let w = MAP_WIDTH as usize;
-    let h = MAP_HEIGHT as usize;
-    let idx = |x: i32, y: i32| -> usize { (y as usize) * w + x as usize };
-
-    if p.0 < w as u32 && p.1 < h as u32 && boundary_mask[idx(p.0 as i32, p.1 as i32)] {
-        return p;
-    }
-
-    let max_r = 6i32;
-    for r in 1..=max_r {
-        for dy in -r..=r {
-            for dx in -r..=r {
-                if dx.abs() != r && dy.abs() != r {
-                    continue; // 只扫外环
-                }
-                let nx = p.0 as i32 + dx;
-                let ny = p.1 as i32 + dy;
-                if nx < 0 || ny < 0 || nx >= w as i32 || ny >= h as i32 {
-                    continue;
-                }
-                if boundary_mask[idx(nx, ny)] {
-                    return (nx as u32, ny as u32);
-                }
-            }
-        }
-    }
+/// 像素点修正（边界已移除，直接返回原坐标）
+fn snap_inside(_boundary_mask: &[bool], p: (u32, u32)) -> (u32, u32) {
     p
 }
 
@@ -229,7 +197,7 @@ fn create_road_segment(
     let start_px = heightmap::world_to_pixel(from_x, from_y);
     let end_px = heightmap::world_to_pixel(to_x, to_y);
 
-    // 起点/终点可能落在 mask 外(浮多边形与像素量化缝隙)，就近 snap 到界内像素
+    // 起点/终点世界坐标转像素（边界已移除，直接使用原坐标）
     let start_px = snap_inside(boundary_mask, start_px);
     let end_px = snap_inside(boundary_mask, end_px);
 

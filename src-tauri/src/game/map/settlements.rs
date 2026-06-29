@@ -1,7 +1,7 @@
 use rand::Rng;
 use super::{LocationType, MAP_WIDTH, MAP_HEIGHT, WORLD_MIN, WORLD_MAX, LARGE_NAMES, MEDIUM_NAMES, SMALL_NAMES, MIN_HAB};
 use super::heightmap;
-use super::boundary::Boundary;
+
 use super::{CITY_COUNT, TOWN_COUNT, TOTAL_TARGET,
     DIST_CITY_CITY, DIST_CITY_TOWN, DIST_TOWN_TOWN,
     DIST_TOWN_VILLAGE, DIST_VILLAGE_VILLAGE, DIST_VILLAGE_CITY,
@@ -11,7 +11,7 @@ use super::{CITY_COUNT, TOWN_COUNT, TOTAL_TARGET,
 /// 宜居度最低接受阈值: 低于此值的像素不被选作采样候选
 // (定义在 mod.rs 中作为 MIN_HAB, 此处通过 super 引用)
 
-/// 宜居度加权 CDF (边界内 + 高于最低宜居度)。在 generate_map 构建一次, 供三层采样复用。
+/// 宜居度加权 CDF (高于最低宜居度的像素)。在 generate_map 构建一次, 供三层采样复用。
 pub(super) struct HabCdf {
     pixels: Vec<u32>,    // 候选像素索引 (py * MAP_WIDTH + px)
     weights: Vec<f32>,   // 累积权重, weights[i] = sum(0..=i)
@@ -19,14 +19,14 @@ pub(super) struct HabCdf {
 }
 
 /// 构建宜居度加权 CDF
-pub(super) fn build_hab_cdf(boundary: &Boundary, habitability: &[f32]) -> HabCdf {
+pub(super) fn build_hab_cdf(habitability: &[f32]) -> HabCdf {
     let mut pixels: Vec<u32> = Vec::new();
     let mut weights: Vec<f32> = Vec::new();
     let mut total = 0.0f32;
     for py in 0..MAP_HEIGHT {
         for px in 0..MAP_WIDTH {
             let idx = (py * MAP_WIDTH + px) as usize;
-            if boundary.mask[idx] && habitability[idx] > MIN_HAB {
+            if habitability[idx] > MIN_HAB {
                 total += habitability[idx];
                 pixels.push(py * MAP_WIDTH + px);
                 weights.push(total);
@@ -36,10 +36,9 @@ pub(super) fn build_hab_cdf(boundary: &Boundary, habitability: &[f32]) -> HabCdf
     HabCdf { pixels, weights, total }
 }
 
-/// 通用地点放置：宜居度加权采样 + 吸引力驱动 + 边界约束
+/// 通用地点放置：宜居度加权采样 + 吸引力驱动
 fn place_settlements(
     _heights: &[f64],
-    _boundary: &Boundary,
     habitability: &[f32],
     cdf: &HabCdf,
     layer_seed: u32,
@@ -156,13 +155,12 @@ fn place_settlements(
 /// 生成城市：宜居度加权分布，仅城市间最小距离约束
 pub(super) fn generate_cities(
     heights: &[f64],
-    boundary: &Boundary,
     habitability: &[f32],
     cdf: &HabCdf,
     seed: u32,
 ) -> Vec<(f64, f64)> {
     let cities = place_settlements(
-        heights, boundary, habitability, cdf, seed, CITY_COUNT,
+        heights, habitability, cdf, seed, CITY_COUNT,
         &[],
         DIST_CITY_CITY,
         &[],
@@ -180,14 +178,13 @@ pub(super) fn generate_cities(
 /// 生成小镇：由城市吸引，满足城市-小镇最小距离 + 镇间最小距离
 pub(super) fn generate_towns(
     heights: &[f64],
-    boundary: &Boundary,
     habitability: &[f32],
     cdf: &HabCdf,
     seed: u32,
     cities: &[(f64, f64)],
 ) -> Vec<(f64, f64)> {
     let towns = place_settlements(
-        heights, boundary, habitability, cdf,
+        heights, habitability, cdf,
         seed.wrapping_add(1),
         TOWN_COUNT,
         &[(cities, DIST_CITY_TOWN)],
@@ -207,7 +204,6 @@ pub(super) fn generate_towns(
 /// 生成村庄：由城市(弱)和小镇(强)吸引，满足对城市/小镇的最小距离 + 村间最小距离
 pub(super) fn generate_villages(
     heights: &[f64],
-    boundary: &Boundary,
     habitability: &[f32],
     cdf: &HabCdf,
     seed: u32,
@@ -216,7 +212,7 @@ pub(super) fn generate_villages(
 ) -> Vec<(f64, f64)> {
     let village_target = TOTAL_TARGET.saturating_sub(CITY_COUNT + TOWN_COUNT);
     let villages = place_settlements(
-        heights, boundary, habitability, cdf,
+        heights, habitability, cdf,
         seed.wrapping_add(2),
         village_target,
         &[(cities, DIST_VILLAGE_CITY), (towns, DIST_TOWN_VILLAGE)],

@@ -2,7 +2,6 @@ import { Application, Container, Point } from "pixi.js"
 import { createContourLayer } from "./layers/ContourLayer"
 import { createRoadLayer } from "./layers/RoadLayer"
 import { createLocationLayer } from "./layers/LocationLayer"
-import { createBoundaryLayer } from "./layers/BoundaryLayer"
 import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
 import { createFlatCenterLayer } from "./layers/FlatCenterLayer"
 import { createRegionLayer } from "./layers/RegionLayer"
@@ -54,7 +53,7 @@ export async function createMap(
     const world = new Container()
 
     if (map) {
-      // 层序：高度图(底) → 宜居度 → 等高线 → 省界 → 道路 → 地点(顶)
+      // 层序：高度图(底) → 宜居度 → 等高线 → 道路 → 地点(顶)
       const heightLayer_ = createHeightmapLayer(map.heightmap, map.width, map.height)
       heightLayer = heightLayer_
       world.addChild(heightLayer_)
@@ -72,9 +71,6 @@ export async function createMap(
       const contourLayer_ = createContourLayer(contours, colors)
       contourLayer = contourLayer_
       world.addChild(contourLayer_)
-
-      const boundaryLayer = createBoundaryLayer(map.boundary, colors)
-      if (boundaryLayer) world.addChild(boundaryLayer)
 
       const regionLayer_ = createRegionLayer(map.regions)
       regionLayer = regionLayer_

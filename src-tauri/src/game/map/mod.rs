@@ -154,13 +154,13 @@ pub fn generate_map(seed: u32) -> MapData {
         .collect();
 
     // 1d. 构建两个 CDF：纯宜居度（小镇/村庄用）+ 综合分（城市用）
-    let hab_cdf = settlements::build_hab_cdf(&boundary, &habitability);
-    let city_cdf = settlements::build_hab_cdf(&boundary, &city_suitability);
+    let hab_cdf = settlements::build_hab_cdf(&habitability);
+    let city_cdf = settlements::build_hab_cdf(&city_suitability);
 
     // 2. 分层生成位置：城市(用综合分) → 小镇 → 村庄 (用纯宜居度)
-    let cities = settlements::generate_cities(&heightmap, &boundary, &city_suitability, &city_cdf, seed);
-    let towns = settlements::generate_towns(&heightmap, &boundary, &habitability, &hab_cdf, seed, &cities);
-    let villages = settlements::generate_villages(&heightmap, &boundary, &habitability, &hab_cdf, seed, &cities, &towns);
+    let cities = settlements::generate_cities(&heightmap, &city_suitability, &city_cdf, seed);
+    let towns = settlements::generate_towns(&heightmap, &habitability, &hab_cdf, seed, &cities);
+    let villages = settlements::generate_villages(&heightmap, &habitability, &hab_cdf, seed, &cities, &towns);
 
     // 2. 合并所有位置并构建 LocationData（类型在生成时已确定）
     let cap = cities.len() + towns.len() + villages.len();

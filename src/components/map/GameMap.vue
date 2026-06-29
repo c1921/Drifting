@@ -6,7 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { LocationData } from "@/types/map"
 import type { MapHandle } from "./MapRenderer"
 
-type OverlayMode = 'habitability' | 'heightmap' | 'contours'
+type OverlayMode = 'habitability' | 'flatCenter' | 'heightmap' | 'contours'
 
 const canvasRef = useTemplateRef<HTMLDivElement>("canvasRef")
 const mapHandle = ref<MapHandle | null>(null)
@@ -77,6 +77,15 @@ onUnmounted(() => {
             class="text-sm leading-none font-medium select-none"
           >
             宜居度
+          </label>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <RadioGroupItem value="flatCenter" :id="'overlay-flatCenter'" />
+          <label
+            :for="'overlay-flatCenter'"
+            class="text-sm leading-none font-medium select-none"
+          >
+            平坦中心度
           </label>
         </div>
       </RadioGroup>

@@ -44,12 +44,12 @@ pub(crate) const ATTRACT_CITY_VILLAGE_FALLOFF: f64 = 350.0;
 #[allow(dead_code)]
 pub(crate) const FLAT_THRESHOLD: f64 = 0.10;
 
-// ── 宜居度参数 ────────────────────────────────────
+// ── 地形参数 ────────────────────────────────────
 pub(crate) const SLOPE_STEEP: f64 = 0.025;
 pub(crate) const MAX_RAD_PX: f64 = 64.0;
-pub(crate) const W_ALT: f64 = 0.30;
-pub(crate) const W_SLP: f64 = 0.20;
-pub(crate) const W_RAD: f64 = 0.50;
+pub(crate) const W_ALT: f64 = 0.30;     // 宜居度：海拔权重
+pub(crate) const W_SLP: f64 = 0.20;     // 宜居度：坡度权重
+pub(crate) const W_RAD: f64 = 0.50;     // 城市综合分：平坦中心度权重
 pub(crate) const MIN_HAB: f32 = 0.85;
 
 // ── 数据结构 ──────────────────────────────────────
@@ -82,7 +82,8 @@ pub struct RoadData {
 #[derive(Debug, Clone, Serialize)]
 pub struct MapData {
     pub heightmap: Vec<f32>,
-    pub habitability: Vec<f32>,   // 512×512, 0..1 宜居度
+    pub habitability: Vec<f32>,   // 512×512, 0..1 宜居度（海拔+坡度）
+    pub flat_center: Vec<f32>,    // 512×512, 0..1 平坦区域中心度
     pub width: u32,
     pub height: u32,
     pub boundary: Vec<f64>,       // 扁平 [x0,y0,x1,y1,...] 世界坐标闭合环
@@ -132,14 +133,23 @@ pub fn generate_map(seed: u32) -> MapData {
     // 1a. 生成边界 (纯形状约束, 不依赖高度)
     let boundary = boundary::generate_boundary(seed);
 
-    // 1b. 预计算全图宜居度
+    // 1b. 预计算平坦区域中心度和宜居度
+    let flat_center = habitability::compute_flat_center(&heightmap);
     let habitability = habitability::compute_habitability(&heightmap);
 
-    // 1c. 构建宜居度加权 CDF (边界内 + 高宜居度候选像素)，供三层采样复用
-    let hab_cdf = settlements::build_hab_cdf(&boundary, &habitability);
+    // 1c. 城市综合分：宜居度 + 平坦中心度（城市额外参考）
+    let hab_weight = (W_ALT + W_SLP) as f32;
+    let rad_weight = W_RAD as f32;
+    let city_suitability: Vec<f32> = habitability.iter().zip(flat_center.iter())
+        .map(|(&h, &fc)| (hab_weight * h + rad_weight * fc).clamp(0.0, 1.0))
+        .collect();
 
-    // 2. 分层生成位置：城市 → 小镇 → 村庄 (传入边界 + 宜居度 + CDF)
-    let cities = settlements::generate_cities(&heightmap, &boundary, &habitability, &hab_cdf, seed);
+    // 1d. 构建两个 CDF：纯宜居度（小镇/村庄用）+ 综合分（城市用）
+    let hab_cdf = settlements::build_hab_cdf(&boundary, &habitability);
+    let city_cdf = settlements::build_hab_cdf(&boundary, &city_suitability);
+
+    // 2. 分层生成位置：城市(用综合分) → 小镇 → 村庄 (用纯宜居度)
+    let cities = settlements::generate_cities(&heightmap, &boundary, &city_suitability, &city_cdf, seed);
     let towns = settlements::generate_towns(&heightmap, &boundary, &habitability, &hab_cdf, seed, &cities);
     let villages = settlements::generate_villages(&heightmap, &boundary, &habitability, &hab_cdf, seed, &cities, &towns);
 
@@ -208,6 +218,7 @@ pub fn generate_map(seed: u32) -> MapData {
     MapData {
         heightmap: heightmap.into_iter().map(|v| v as f32).collect(),
         habitability,
+        flat_center,
         width: MAP_WIDTH,
         height: MAP_HEIGHT,
         boundary: boundary_poly,

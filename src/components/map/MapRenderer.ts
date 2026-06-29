@@ -4,6 +4,7 @@ import { createRoadLayer } from "./layers/RoadLayer"
 import { createLocationLayer } from "./layers/LocationLayer"
 import { createBoundaryLayer } from "./layers/BoundaryLayer"
 import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
+import { createFlatCenterLayer } from "./layers/FlatCenterLayer"
 import { createHeightmapLayer } from "./layers/HeightmapLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
 import { extractContours } from "@/map/contourExtractor"
@@ -12,7 +13,7 @@ import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
-  setOverlayMode: (mode: 'habitability' | 'heightmap' | 'contours') => void
+  setOverlayMode: (mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours') => void
   regenerate: () => Promise<void>
 }
 
@@ -42,6 +43,7 @@ export async function createMap(
 
   // ── Build layers ────────────────────────────────
   let habLayer: Container | null = null
+  let flatCenterLayer: Container | null = null
   let heightLayer: Container | null = null
   let contourLayer: Container | null = null
 
@@ -58,6 +60,10 @@ export async function createMap(
       const habLayer_ = createHabitabilityLayer(map.habitability, map.width, map.height, map.min_hab)
       habLayer = habLayer_
       world.addChild(habLayer_)
+
+      const flatCenterLayer_ = createFlatCenterLayer(map.flat_center, map.width, map.height)
+      flatCenterLayer = flatCenterLayer_
+      world.addChild(flatCenterLayer_)
 
       // 从高度网格提取等高线
       const contours = extractContours(map.heightmap, map.width, map.height)
@@ -157,11 +163,13 @@ export async function createMap(
       stopThemeWatch()
       app.destroy(true)
     },
-    setOverlayMode(mode: 'habitability' | 'heightmap' | 'contours') {
+    setOverlayMode(mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours') {
       const showHab = mode === 'habitability'
+      const showFlatCenter = mode === 'flatCenter'
       const showHeight = mode === 'heightmap'
       const showContour = mode === 'contours'
       if (habLayer) habLayer.visible = showHab
+      if (flatCenterLayer) flatCenterLayer.visible = showFlatCenter
       if (heightLayer) heightLayer.visible = showHeight
       if (contourLayer) contourLayer.visible = showContour
     },

@@ -9,7 +9,7 @@ use super::{CITY_COUNT, TOWN_COUNT, TOTAL_TARGET,
     ATTRACT_TOWN_VILLAGE_FALLOFF, ATTRACT_CITY_VILLAGE_FALLOFF};
 
 /// 宜居度最低接受阈值: 低于此值的像素不被选作采样候选
-const MIN_HAB: f32 = 0.55;
+const MIN_HAB: f32 = 0.85;
 
 /// 宜居度加权 CDF (边界内 + 高于最低宜居度)。在 generate_map 构建一次, 供三层采样复用。
 pub(super) struct HabCdf {

@@ -132,9 +132,9 @@ pub fn generate_map(seed: u32) -> MapData {
     // 1a. 生成边界 (纯形状约束, 不依赖高度)
     let boundary = boundary::generate_boundary(seed);
 
-    // 1b. 预计算平坦区域中心度和宜居度
-    let flat_center = habitability::compute_flat_center(&heightmap);
+    // 1b. 预计算宜居度和平坦区域中心度（后者基于宜居度栅格）
     let habitability = habitability::compute_habitability(&heightmap);
+    let flat_center = habitability::compute_flat_center(&habitability);
 
     // 1c. 城市综合分：宜居度 + 平坦中心度（城市额外参考）
     let hab_weight = (W_ALT + W_SLP) as f32;

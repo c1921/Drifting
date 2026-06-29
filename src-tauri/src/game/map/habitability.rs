@@ -1,58 +1,22 @@
-use super::{MAP_WIDTH, MAP_HEIGHT, SLOPE_STEEP, W_ALT, W_SLP};
+use super::{MAP_WIDTH, MAP_HEIGHT, SLOPE_STEEP, W_ALT, W_SLP, MIN_HAB};
 
 /// 预计算平坦区域中心度 (512×512, 0.0~1.0)
 ///
-/// 对每个连通平坦区域，计算像素到区域边界的距离，在区域内归一化。
-/// 平坦区域几何中心 = 1.0，边缘 = 0.0，非平坦区域 = 0.0。
-/// 方法: Sobel 梯度 → 坡度 → 平坦边界种子 → Chamfer distance → 逐连通分量归一化
-pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
+/// 基于宜居度栅格，对每个连通高宜居度区域，计算像素到区域边界的距离，在区域内归一化。
+/// 高宜居度区域几何中心 = 1.0，边缘 = 0.0，低宜居度区域 = 0.0。
+/// 方法: 宜居度阈值 → 高宜居度种子 → Chamfer distance → 逐连通分量归一化
+pub(super) fn compute_flat_center(habitability: &[f32]) -> Vec<f32> {
     let w = MAP_WIDTH as usize;
     let h = MAP_HEIGHT as usize;
     let total = w * h;
 
-    // 1. Sobel 梯度幅值
-    let mut slope = vec![0.0f64; total];
-    for y in 0..h {
-        for x in 0..w {
-            let idx = y * w + x;
-
-            let mut gx = 0.0;
-            if x > 0 && x < w - 1 {
-                let row_up = if y > 0 { y - 1 } else { y };
-                let row_dn = if y + 1 < h { y + 1 } else { y };
-                gx = heights[row_up * w + x + 1] * -1.0
-                    + heights[row_up * w + x - 1] * 1.0
-                    + heights[y * w + x + 1] * -2.0
-                    + heights[y * w + x - 1] * 2.0
-                    + heights[row_dn * w + x + 1] * -1.0
-                    + heights[row_dn * w + x - 1] * 1.0;
-                gx /= 4.0;
-            }
-
-            let mut gy = 0.0;
-            if y > 0 && y < h - 1 {
-                let col_l = if x > 0 { x - 1 } else { x };
-                let col_r = if x + 1 < w { x + 1 } else { x };
-                gy = heights[(y - 1) * w + col_l] * 1.0
-                    + heights[(y - 1) * w + x] * 2.0
-                    + heights[(y - 1) * w + col_r] * 1.0
-                    + heights[(y + 1) * w + col_l] * -1.0
-                    + heights[(y + 1) * w + x] * -2.0
-                    + heights[(y + 1) * w + col_r] * -1.0;
-                gy /= 4.0;
-            }
-
-            slope[idx] = (gx * gx + gy * gy).sqrt();
-        }
-    }
-
     const INF: i32 = i32::MAX / 4;
-    let steep = SLOPE_STEEP;
+    let threshold = MIN_HAB;
 
-    // 2. 平坦区域掩码 & 边界种子初始化
+    // 1. 高宜居度区域掩码 & 边界种子初始化
     let mut flat = vec![false; total];
     for i in 0..total {
-        flat[i] = slope[i] <= steep;
+        flat[i] = habitability[i] >= threshold;
     }
 
     let mut dist = vec![INF; total];
@@ -74,7 +38,7 @@ pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
         }
     }
 
-    // 3. Chamfer distance transform (3-4 kernel) — 测量到平坦边界的距离
+    // 2. Chamfer distance transform (3-4 kernel) — 测量到高宜居度区域边界的距离
     for y in 0..h {
         for x in 0..w {
             let idx = y * w + x;
@@ -98,7 +62,7 @@ pub(super) fn compute_flat_center(heights: &[f64]) -> Vec<f32> {
         }
     }
 
-    // 4. 逐连通分量归一化：每个平坦区域内，中心=1.0，边界=0.0
+    // 3. 逐连通分量归一化：每个高宜居度区域内，中心=1.0，边界=0.0
     let mut flat_center = vec![0.0f32; total];
     let mut visited = vec![false; total];
 

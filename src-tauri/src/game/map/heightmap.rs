@@ -7,10 +7,10 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
 
     let mut heights = Vec::with_capacity((MAP_WIDTH * MAP_HEIGHT) as usize);
 
-    // 预计算中心距离归一化因子（对角线一半长度）
-    let half_w = MAP_WIDTH as f64 / 2.0;
-    let half_h = MAP_HEIGHT as f64 / 2.0;
-    let max_dist = (half_w * half_w + half_h * half_h).sqrt();
+    // 预计算常量（循环外一次）
+    let half = (MAP_WIDTH / 2) as f64;
+    let inv_max_dist = 1.0 / (half * half + half * half).sqrt();
+    const MAX_AMP: f64 = 1.875; // Σ(PERSISTENCE^i), i=0..3 = 1 + 0.5 + 0.25 + 0.125
 
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
@@ -20,27 +20,23 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
             let mut value = 0.0;
             let mut amplitude = 1.0;
             let mut frequency = 1.0;
-            let mut max_amplitude = 0.0;
 
             for _ in 0..OCTAVES {
                 value += perlin.get([nx * frequency, ny * frequency]) * amplitude;
-                max_amplitude += amplitude;
                 amplitude *= PERSISTENCE;
                 frequency *= LACUNARITY;
             }
 
-            let normalized = (value / max_amplitude + 1.0) * 0.5;
-            let clamped = normalized.clamp(0.0, 1.0).powf(3.0);
+            // 归一化并施加对比度（始终在 [0, 1]）
+            let clamped = ((value / MAX_AMP + 1.0) * 0.5).powf(3.0);
 
-            // 在噪波基础上使四周高、中间低（盆地效果）
-            let dx = x as f64 - half_w;
-            let dy = y as f64 - half_h;
-            let dist = (dx * dx + dy * dy).sqrt() / max_dist; // 0 中心 ~ 1 角落
-            let edge_factor = dist.min(1.0);
-            // 中心保留少量噪波，边缘叠加高度并放大
-            let height = clamped * (0.15 + edge_factor * 1.5);
-            // 中心降低：减去一个随距离递减的偏移，保证中心始终是最低区域
-            let height = (height - (1.0 - edge_factor) * 0.10).max(0.0);
+            // 盆地效果：边缘高、中心低
+            let dx = x as f64 - half;
+            let dy = y as f64 - half;
+            let edge_factor = (dx * dx + dy * dy).sqrt() * inv_max_dist;
+
+            let height =
+                (clamped * (0.15 + edge_factor * 1.5) - (1.0 - edge_factor) * 0.10).max(0.0);
 
             heights.push(height);
         }

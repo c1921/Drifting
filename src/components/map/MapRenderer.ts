@@ -4,6 +4,7 @@ import { createRoadLayer } from "./layers/RoadLayer"
 import { createLocationLayer } from "./layers/LocationLayer"
 import { createBoundaryLayer } from "./layers/BoundaryLayer"
 import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
+import { createHeightmapLayer } from "./layers/HeightmapLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
 import { extractContours } from "@/map/contourExtractor"
 import { getMap, regenerateMap } from "@/api/map"
@@ -11,7 +12,7 @@ import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
-  setHabitabilityVisible: (visible: boolean) => void
+  setOverlayMode: (mode: 'habitability' | 'heightmap' | 'contours') => void
   regenerate: () => Promise<void>
 }
 
@@ -41,20 +42,28 @@ export async function createMap(
 
   // ── Build layers ────────────────────────────────
   let habLayer: Container | null = null
+  let heightLayer: Container | null = null
+  let contourLayer: Container | null = null
 
   function buildWorld(map: import("@/types/map").MapData | null): Container {
     const colors = getThemeColors()
     const world = new Container()
 
     if (map) {
-      // 层序：宜居度(底) → 等高线 → 省界 → 道路 → 地点(顶)
+      // 层序：高度图(底) → 宜居度 → 等高线 → 省界 → 道路 → 地点(顶)
+      const heightLayer_ = createHeightmapLayer(map.heightmap, map.width, map.height)
+      heightLayer = heightLayer_
+      world.addChild(heightLayer_)
+
       const habLayer_ = createHabitabilityLayer(map.habitability, map.width, map.height)
       habLayer = habLayer_
       world.addChild(habLayer_)
 
       // 从高度网格提取等高线
       const contours = extractContours(map.heightmap, map.width, map.height)
-      world.addChild(createContourLayer(contours, colors))
+      const contourLayer_ = createContourLayer(contours, colors)
+      contourLayer = contourLayer_
+      world.addChild(contourLayer_)
 
       const boundaryLayer = createBoundaryLayer(map.boundary, colors)
       if (boundaryLayer) world.addChild(boundaryLayer)
@@ -148,8 +157,13 @@ export async function createMap(
       stopThemeWatch()
       app.destroy(true)
     },
-    setHabitabilityVisible(visible: boolean) {
-      if (habLayer) habLayer.visible = visible
+    setOverlayMode(mode: 'habitability' | 'heightmap' | 'contours') {
+      const showHab = mode === 'habitability'
+      const showHeight = mode === 'heightmap'
+      const showContour = mode === 'contours'
+      if (habLayer) habLayer.visible = showHab
+      if (heightLayer) heightLayer.visible = showHeight
+      if (contourLayer) contourLayer.visible = showContour
     },
     async regenerate() {
       try {

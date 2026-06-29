@@ -7,6 +7,11 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
 
     let mut heights = Vec::with_capacity((MAP_WIDTH * MAP_HEIGHT) as usize);
 
+    // 预计算中心距离归一化因子（对角线一半长度）
+    let half_w = MAP_WIDTH as f64 / 2.0;
+    let half_h = MAP_HEIGHT as f64 / 2.0;
+    let max_dist = (half_w * half_w + half_h * half_h).sqrt();
+
     for y in 0..MAP_HEIGHT {
         for x in 0..MAP_WIDTH {
             let nx = x as f64 * MAP_SCALE;
@@ -26,7 +31,16 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
 
             let normalized = (value / max_amplitude + 1.0) * 0.5;
             let clamped = normalized.clamp(0.0, 1.0).powf(3.0);
-            heights.push(clamped);
+
+            // 在噪波基础上使四周高、中间低（盆地效果）
+            let dx = x as f64 - half_w;
+            let dy = y as f64 - half_h;
+            let dist = (dx * dx + dy * dy).sqrt() / max_dist; // 0 中心 ~ 1 角落
+            let edge_factor = dist.min(1.0);
+            // 中心保留部分噪波，边缘逐渐叠加高度
+            let height = clamped * (0.4 + edge_factor * 0.6);
+
+            heights.push(height);
         }
     }
 

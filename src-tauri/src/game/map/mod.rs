@@ -53,6 +53,8 @@ pub(crate) const W_ALT: f64 = 0.30;     // 宜居度：海拔权重
 pub(crate) const W_SLP: f64 = 0.20;     // 宜居度：坡度权重
 pub(crate) const W_RAD: f64 = 0.50;     // 城市综合分：平坦中心度权重
 pub(crate) const MIN_HAB: f32 = 0.85;
+/// 区域划分用的宜居度阈值（比 MIN_HAB 低 0.1，让区域更大更连贯）
+pub(crate) const REGION_MIN_HAB: f32 = 0.75;
 pub(crate) const REGION_DOMINANCE_RATIO: f64 = 0.5;
 
 // ── 数据结构 ──────────────────────────────────────

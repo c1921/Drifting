@@ -1,4 +1,4 @@
-use super::{MAP_WIDTH, MAP_HEIGHT, MIN_HAB, REGION_DOMINANCE_RATIO};
+use super::{MAP_WIDTH, MAP_HEIGHT, REGION_MIN_HAB, REGION_DOMINANCE_RATIO};
 use super::heightmap;
 
 /// 地区数据：ID + 多边形轮廓
@@ -11,7 +11,7 @@ pub struct RegionData {
 
 /// 计算地区划分
 ///
-/// 1. 用 MIN_HAB 阈值生成高宜居度掩码
+/// 1. 用 REGION_MIN_HAB (= MIN_HAB - 0.1) 阈值生成高宜居度掩码
 /// 2. 找出所有连通分量（每个分量直接作为一个自然区域）
 /// 3. 过滤面积 < 总高宜居度面积 0.5% 的极小孤立碎片
 /// 4. 拆分面积 ≥ 总高宜居度面积 50% 的占主导区域
@@ -24,7 +24,7 @@ pub(super) fn compute_regions(habitability: &[f32], _seed: u32) -> Vec<RegionDat
     // 1. 高宜居度掩码
     let mut high_hab = vec![false; total];
     for i in 0..total {
-        high_hab[i] = habitability[i] >= MIN_HAB;
+        high_hab[i] = habitability[i] >= REGION_MIN_HAB;
     }
 
     // 2. 连通分量标记 — 每个连通分量直接作为一个自然区域

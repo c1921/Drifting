@@ -34,8 +34,8 @@ const LOW_AMP: f64 = 0.10;
 /// 高频细节锯齿幅度
 const HI_AMP: f64 = 0.03;
 
-/// 低频空间尺度
-const SCALE_LOW: f64 = 3.0;
+/// 低频空间尺度（值越小 → 环绕圈数越少 → 凸起数量越少）
+const SCALE_LOW: f64 = 1.8;
 
 /// 高频空间尺度
 const SCALE_HI: f64 = 16.0;
@@ -84,8 +84,8 @@ pub(super) fn generate_boundary(seed: u32) -> Boundary {
         points.push((wx, wy));
     }
 
-    // 轻度平滑：3-tap 移动平均 1 遍（仅抹掉角度采样的高频毛刺）
-    let smoothed = smooth_ring(&points, 1);
+    // 轻度平滑：3-tap 移动平均 2 遍（平滑掉高频毛刺，减少小凸起）
+    let smoothed = smooth_ring(&points, 2);
 
     // 展平为 Vec<f64>
     let mut final_poly: Vec<f64> = Vec::with_capacity(ANG_RES * 2);

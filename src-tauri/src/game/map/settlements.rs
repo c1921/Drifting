@@ -5,7 +5,7 @@ use super::boundary::Boundary;
 use super::{CITY_COUNT, TOWN_COUNT, TOTAL_TARGET,
     DIST_CITY_CITY, DIST_CITY_TOWN, DIST_TOWN_TOWN,
     DIST_TOWN_VILLAGE, DIST_VILLAGE_VILLAGE, DIST_VILLAGE_CITY,
-    ATTRACT_NEAR_PROB, ATTRACT_CITY_TOWN_FALLOFF,
+    ATTRACT_CITY_TOWN_FALLOFF,
     ATTRACT_TOWN_VILLAGE_FALLOFF, ATTRACT_CITY_VILLAGE_FALLOFF};
 
 /// 宜居度最低接受阈值: 低于此值的像素不被选作采样候选
@@ -39,7 +39,7 @@ pub(super) fn build_hab_cdf(boundary: &Boundary, habitability: &[f32]) -> HabCdf
 /// 通用地点放置：宜居度加权采样 + 吸引力驱动 + 边界约束
 fn place_settlements(
     _heights: &[f64],
-    boundary: &Boundary,
+    _boundary: &Boundary,
     habitability: &[f32],
     cdf: &HabCdf,
     layer_seed: u32,
@@ -68,24 +68,9 @@ fn place_settlements(
     while placed.len() < target_count && attempts < max_attempts {
         attempts += 1;
 
-        // ── 采样候选坐标 ──────────────────────────
-        let (wx, wy) = if !flat_attractors.is_empty() && rng.gen_bool(ATTRACT_NEAR_PROB) {
-            // 吸引力路径：在吸引子 falloff 半径内以面积均匀分布采样
-            let idx = rng.gen_range(0..flat_attractors.len());
-            let ((cx, cy), falloff) = flat_attractors[idx];
-            let angle = rng.gen_range(0.0..std::f64::consts::TAU);
-            let u: f64 = rng.gen_range(0.0..1.0);
-            let r = falloff * u * u;
-            let sx = cx + r * angle.cos();
-            let sy = cy + r * angle.sin();
-
-            // 边界硬过滤：吸引力路径可能越界
-            if !boundary.contains_world(sx, sy) {
-                continue;
-            }
-            (sx, sy)
-        } else if !cdf.pixels.is_empty() && cdf.total > 0.0 {
-            // 宜居度加权采样路径：按 CDF 选像素
+        // ── 采样候选坐标（主路径：宜居度加权 CDF）───
+        let (wx, wy) = if !cdf.pixels.is_empty() && cdf.total > 0.0 {
+            // 宜居度加权采样：按 CDF 选像素，确保高宜居度区域更可能被选中
             let r = rng.gen::<f32>() * cdf.total;
             let idx = match cdf.weights.binary_search_by(|&w| w.partial_cmp(&r).unwrap()) {
                 Ok(i) => i,
@@ -112,10 +97,27 @@ fn place_settlements(
         let wx = (wx * 10.0).round() / 10.0;
         let wy = (wy * 10.0).round() / 10.0;
 
-        // ── 宜居度软接受 ──────────────────────────
+        // ── 宜居度软接受（含吸引力次级加成）──────────
         let (px, py) = heightmap::world_to_pixel(wx, wy);
         let idx = (py * MAP_WIDTH + px) as usize;
-        let hab = habitability.get(idx).copied().unwrap_or(0.0) as f64;
+        let mut hab = habitability.get(idx).copied().unwrap_or(0.0) as f64;
+
+        // 吸引力加成：靠近吸引子（城市/小镇）时获得宜居度小幅提升，
+        // 但不超过 +0.15，确保宜居度仍为主导因素
+        if !flat_attractors.is_empty() {
+            let mut max_boost = 0.0f64;
+            for &((cx, cy), falloff) in &flat_attractors {
+                let dx = wx - cx;
+                let dy = wy - cy;
+                let dist = (dx * dx + dy * dy).sqrt();
+                if dist < falloff {
+                    let boost = 1.0 - (dist / falloff); // 0..1, 越近加成越高
+                    max_boost = max_boost.max(boost);
+                }
+            }
+            hab = (hab + max_boost * 0.15).min(1.0);
+        }
+
         if rng.gen::<f64>() > hab {
             continue;
         }

@@ -13,6 +13,7 @@ pub(super) struct Boundary {
 
 impl Boundary {
     /// 查询世界坐标点 (wx, wy) 是否在边界内
+    #[allow(dead_code)]
     pub fn contains_world(&self, wx: f64, wy: f64) -> bool {
         let (px, py) = heightmap::world_to_pixel(wx, wy);
         let idx = py as usize * MAP_WIDTH as usize + px as usize;

@@ -33,7 +33,8 @@ pub(crate) const DIST_TOWN_VILLAGE: f64 = 30.0;
 pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 30.0;
 pub(crate) const DIST_VILLAGE_CITY: f64 = 30.0;
 
-// ── 吸引力参数（采样偏向聚落中心，无硬性最大距离）─────
+// ── 吸引力参数（次级加成，非硬性最大距离）───────────
+#[allow(dead_code)]
 pub(crate) const ATTRACT_NEAR_PROB: f64 = 0.85;
 pub(crate) const ATTRACT_CITY_TOWN_FALLOFF: f64 = 300.0;
 pub(crate) const ATTRACT_TOWN_VILLAGE_FALLOFF: f64 = 120.0;

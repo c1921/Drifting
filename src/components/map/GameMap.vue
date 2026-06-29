@@ -2,16 +2,28 @@
 import { onMounted, onUnmounted, ref, useTemplateRef } from "vue"
 import { createMap } from "./MapRenderer"
 import { Switch } from "@/components/ui/switch"
+import { Button } from "@/components/ui/button"
 import type { LocationData } from "@/types/map"
 import type { MapHandle } from "./MapRenderer"
 
 const canvasRef = useTemplateRef<HTMLDivElement>("canvasRef")
 const mapHandle = ref<MapHandle | null>(null)
 const showHabitability = ref(true)
+const regenerating = ref(false)
 
 function onLocationSelect(loc: LocationData) {
   // Placeholder for future interaction (e.g. tooltip, detail panel)
   console.log("Selected:", loc.name)
+}
+
+async function regenerate() {
+  if (!mapHandle.value || regenerating.value) return
+  regenerating.value = true
+  try {
+    await mapHandle.value.regenerate()
+  } finally {
+    regenerating.value = false
+  }
 }
 
 onMounted(async () => {
@@ -44,6 +56,14 @@ function toggleHabitability(value: boolean) {
       >
         宜居度
       </label>
+      <Button
+        variant="outline"
+        size="sm"
+        :disabled="regenerating"
+        @click="regenerate"
+      >
+        {{ regenerating ? '生成中…' : '重新生成' }}
+      </Button>
     </div>
     <div class="flex flex-1 items-stretch">
       <div

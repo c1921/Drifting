@@ -6,12 +6,13 @@ import { createBoundaryLayer } from "./layers/BoundaryLayer"
 import { createHabitabilityLayer } from "./layers/HabitabilityLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
 import { extractContours } from "@/map/contourExtractor"
-import { getMap } from "@/api/map"
+import { getMap, regenerateMap } from "@/api/map"
 import type { LocationData } from "@/types/map"
 
 export interface MapHandle {
   destroy: () => void
   setHabitabilityVisible: (visible: boolean) => void
+  regenerate: () => Promise<void>
 }
 
 export async function createMap(
@@ -41,31 +42,31 @@ export async function createMap(
   // ── Build layers ────────────────────────────────
   let habLayer: Container | null = null
 
-  function buildWorld(): Container {
+  function buildWorld(map: import("@/types/map").MapData | null): Container {
     const colors = getThemeColors()
     const world = new Container()
 
-    if (mapData) {
+    if (map) {
       // 层序：宜居度(底) → 等高线 → 省界 → 道路 → 地点(顶)
-      const habLayer_ = createHabitabilityLayer(mapData.habitability, mapData.width, mapData.height)
+      const habLayer_ = createHabitabilityLayer(map.habitability, map.width, map.height)
       habLayer = habLayer_
       world.addChild(habLayer_)
 
       // 从高度网格提取等高线
-      const contours = extractContours(mapData.heightmap, mapData.width, mapData.height)
+      const contours = extractContours(map.heightmap, map.width, map.height)
       world.addChild(createContourLayer(contours, colors))
 
-      const boundaryLayer = createBoundaryLayer(mapData.boundary, colors)
+      const boundaryLayer = createBoundaryLayer(map.boundary, colors)
       if (boundaryLayer) world.addChild(boundaryLayer)
 
-      world.addChild(createRoadLayer(mapData.roads, colors))
-      world.addChild(createLocationLayer(mapData.locations, colors, options?.onLocationSelect))
+      world.addChild(createRoadLayer(map.roads, colors))
+      world.addChild(createLocationLayer(map.locations, colors, options?.onLocationSelect))
     }
 
     return world
   }
 
-  let world = buildWorld()
+  let world = buildWorld(mapData)
   app.stage.addChild(world)
 
   // ── Initial layout ──────────────────────────────
@@ -137,7 +138,7 @@ export async function createMap(
   const stopThemeWatch = onThemeChange(() => {
     app.stage.removeChild(world)
     world.destroy({ children: true })
-    world = buildWorld()
+    world = buildWorld(mapData)
     app.stage.addChild(world)
     resetView()
   })
@@ -149,6 +150,20 @@ export async function createMap(
     },
     setHabitabilityVisible(visible: boolean) {
       if (habLayer) habLayer.visible = visible
+    },
+    async regenerate() {
+      try {
+        const newData = await regenerateMap()
+        mapData = newData
+      } catch (e) {
+        console.error("Failed to regenerate map:", e)
+        return
+      }
+      app.stage.removeChild(world)
+      world.destroy({ children: true })
+      world = buildWorld(mapData)
+      app.stage.addChild(world)
+      resetView()
     },
   }
 }

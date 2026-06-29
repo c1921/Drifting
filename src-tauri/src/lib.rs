@@ -47,11 +47,20 @@ fn get_map(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<ga
     Ok(data)
 }
 
+/// Tauri 命令：重新生成地图（强制使用新随机种子）
+#[tauri::command]
+fn regenerate_map(world: tauri::State<'_, RwLock<bevy_ecs::world::World>>) -> Result<game::map::MapData, String> {
+    let mut world = world.write().map_err(|e| e.to_string())?;
+    let data = game::store_map(&mut world, 0);
+    log::info!("Map regenerated with new seed");
+    Ok(data)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
     .manage(RwLock::new(game::init_world()))
-    .invoke_handler(tauri::generate_handler![generate_role, list_roles, remove_role, list_items, get_map])
+    .invoke_handler(tauri::generate_handler![generate_role, list_roles, remove_role, list_items, get_map, regenerate_map])
     .setup(|app| {
       if cfg!(debug_assertions) {
         app.handle().plugin(

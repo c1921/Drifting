@@ -39,6 +39,8 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
             let edge_factor = dist.min(1.0);
             // 中心保留少量噪波，边缘叠加高度并放大
             let height = clamped * (0.15 + edge_factor * 1.5);
+            // 中心降低：减去一个随距离递减的偏移，保证中心始终是最低区域
+            let height = (height - (1.0 - edge_factor) * 0.10).max(0.0);
 
             heights.push(height);
         }

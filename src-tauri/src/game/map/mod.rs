@@ -44,9 +44,6 @@ pub(crate) const ATTRACT_CITY_VILLAGE_FALLOFF: f64 = 350.0;
 #[allow(dead_code)]
 pub(crate) const FLAT_THRESHOLD: f64 = 0.10;
 
-// ── 边界生成参数 ──────────────────────────────────
-pub(crate) const GRID_N: u32 = 12;
-
 // ── 宜居度参数 ────────────────────────────────────
 pub(crate) const SLOPE_STEEP: f64 = 0.025;
 pub(crate) const MAX_RAD_PX: f64 = 64.0;

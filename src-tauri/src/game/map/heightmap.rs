@@ -36,7 +36,7 @@ pub(super) fn generate_heightmap(seed: u32) -> Vec<f64> {
             let edge_factor = (dx * dx + dy * dy).sqrt() * inv_max_dist;
 
             let height =
-                (clamped * (0.15 + edge_factor * 1.5) - (1.0 - edge_factor) * 0.10).max(0.0);
+                (clamped * (0.15 + edge_factor * 1.5) - (1.0 - edge_factor) * 0.10).clamp(0.0, 1.0);
 
             heights.push(height);
         }

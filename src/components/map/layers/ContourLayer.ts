@@ -1,6 +1,6 @@
 import { Container, Graphics } from "pixi.js"
 import type { ThemeColors } from "../utils/themeUtils"
-import type { ContourData } from "@/map/contourExtractor"
+import type { ContourData } from "@/types/map"
 
 /** 地图世界坐标边界（与后端和等高线提取器一致） */
 const WORLD_MIN = -800

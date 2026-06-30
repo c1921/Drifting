@@ -27,6 +27,7 @@ bevy_ecs = "0.19"
 rand = "0.8"
 noise = "0.9"
 delaunator = "1.0"
+contour = "0.13.1"
 
 # ── 开发 profile：提升调试构建的运行时性能 ──
 [profile.dev]

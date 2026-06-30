@@ -5,10 +5,12 @@ mod roads;
 mod boundary;
 mod habitability;
 mod regions;
+mod contours;
 
 use rand::Rng;
 use serde::Serialize;
 
+use contours::ContourData;
 use regions::RegionData;
 
 // ── 地图常量 ──────────────────────────────────────
@@ -95,6 +97,7 @@ pub struct MapData {
     pub locations: Vec<LocationData>,
     pub roads: Vec<RoadData>,
     pub regions: Vec<RegionData>,
+    pub contours: Vec<ContourData>, // 预先计算的等高线
     pub min_hab: f32,             // 宜居度硬阈值，仅高于此值的像素才能建城
 }
 
@@ -224,6 +227,9 @@ pub fn generate_map(seed: u32) -> MapData {
     // 8. 扁平化边界多边形 (与 RoadData.points 格式一致)
     let boundary_poly = boundary.polygon.clone();
 
+    // 9. 从高度网格计算等高线（后端 Marching Squares）
+    let contours = contours::compute_contours(&heightmap);
+
     MapData {
         heightmap: heightmap.into_iter().map(|v| v as f32).collect(),
         habitability,
@@ -234,6 +240,7 @@ pub fn generate_map(seed: u32) -> MapData {
         locations,
         roads,
         regions,
+        contours,
         min_hab: MIN_HAB,
     }
 }

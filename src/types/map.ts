@@ -27,5 +27,13 @@ export interface MapData {
   locations: LocationData[]
   roads: RoadData[]
   regions: RegionData[]
+  contours: ContourData[] // 后端预计算的等高线
   min_hab: number
+}
+
+/** 后端返回的单条等高线（与 contourExtractor.ts 的 ContourData 兼容） */
+export interface ContourData {
+  points: number[] // flattened [x, y, x, y, ...] 世界坐标
+  closed: boolean  // 是否为闭合环
+  level: number    // 该等高线对应的高度阈值 (0~1)
 }

@@ -7,7 +7,6 @@ import { createFlatCenterLayer } from "./layers/FlatCenterLayer"
 import { createRegionLayer } from "./layers/RegionLayer"
 import { createHeightmapLayer } from "./layers/HeightmapLayer"
 import { getThemeColors, onThemeChange } from "./utils/themeUtils"
-import { extractContours } from "@/map/contourExtractor"
 import { getMap, regenerateMap } from "@/api/map"
 import type { LocationData } from "@/types/map"
 
@@ -66,9 +65,8 @@ export async function createMap(
       flatCenterLayer = flatCenterLayer_
       world.addChild(flatCenterLayer_)
 
-      // 从高度网格提取等高线
-      const contours = extractContours(map.heightmap, map.width, map.height)
-      const contourLayer_ = createContourLayer(contours, colors)
+      // 使用后端预计算的等高线
+      const contourLayer_ = createContourLayer(map.contours, colors)
       contourLayer = contourLayer_
       world.addChild(contourLayer_)
 

@@ -2,9 +2,9 @@ use super::{MAP_WIDTH, MAP_HEIGHT, SLOPE_STEEP, W_ALT, W_SLP, MIN_HAB};
 
 /// 预计算平坦区域中心度 (512×512, 0.0~1.0)
 ///
-/// 基于宜居度栅格，对每个连通高宜居度区域，计算像素到区域边界的距离，在区域内归一化。
-/// 高宜居度区域几何中心 = 1.0，边缘 = 0.0，低宜居度区域 = 0.0。
-/// 方法: 宜居度阈值 → 高宜居度种子 → Chamfer distance → 逐连通分量归一化
+/// 基于宜居度栅格，对每个连通高宜居度区域，计算像素到区域边界的距离，在全局归一化。
+/// 最大平坦区域的几何中心 = 1.0，边缘 = 0.0，小区域中心度按比例降低。
+/// 方法: 宜居度阈值 → 高宜居度种子 → Chamfer distance → 全局最大值归一化
 pub(super) fn compute_flat_center(habitability: &[f32]) -> Vec<f32> {
     let w = MAP_WIDTH as usize;
     let h = MAP_HEIGHT as usize;
@@ -62,10 +62,13 @@ pub(super) fn compute_flat_center(habitability: &[f32]) -> Vec<f32> {
         }
     }
 
-    // 3. 逐连通分量归一化：每个高宜居度区域内，中心=1.0，边界=0.0
+    // 3. 全局归一化：大面积平坦区域中心得分更高
     let mut flat_center = vec![0.0f32; total];
     let mut visited = vec![false; total];
+    let mut components: Vec<Vec<usize>> = Vec::new();
+    let mut global_max_d = 1; // 避免除零
 
+    // 3a. 第一遍：收集所有连通分量，找出全局最大距离
     for start in 0..total {
         if !flat[start] || visited[start] { continue; }
 
@@ -85,7 +88,7 @@ pub(super) fn compute_flat_center(habitability: &[f32]) -> Vec<f32> {
             if cx + 1 < w { let nxt = cy * w + (cx + 1); if flat[nxt] && !visited[nxt] { visited[nxt] = true; queue.push(nxt); } }
         }
 
-        // 找分量内最大距离
+        // 找分量内最大距离，同步更新全局最大值
         let max_d = component.iter()
             .filter_map(|&i| {
                 let d = dist[i];
@@ -93,15 +96,20 @@ pub(super) fn compute_flat_center(habitability: &[f32]) -> Vec<f32> {
             })
             .max()
             .unwrap_or(0)
-            .max(1); // 避免除零
+            .max(1);
 
-        // 归一化
-        for &i in &component {
+        global_max_d = global_max_d.max(max_d);
+        components.push(component);
+    }
+
+    // 3b. 第二遍：用全局最大距离归一化所有分量
+    for component in &components {
+        for &i in component {
             let d = dist[i];
             if d < INF / 2 {
-                flat_center[i] = (d as f32) / (max_d as f32);
+                flat_center[i] = (d as f32) / (global_max_d as f32);
             } else {
-                // 孤立平坦像素（无边界面可达）：中心度视为满分
+                // 孤立平坦像素（无边界面可达）：仍给高分
                 flat_center[i] = 1.0;
             }
         }

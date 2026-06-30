@@ -28,15 +28,15 @@ pub(crate) const WORLD_MAX: f64 = 800.0;
 // ── 地点生成参数 ──────────────────────────────────
 pub(crate) const CITY_COUNT: usize = 3;
 pub(crate) const TOWN_COUNT: usize = 20;
-pub(crate) const TOTAL_TARGET: usize = 180;
+pub(crate) const TOTAL_TARGET: usize = 550;
 
 // ── 地点间距约束（世界单位）─────────────────────────
-pub(crate) const DIST_CITY_CITY: f64 = 240.0;
-pub(crate) const DIST_CITY_TOWN: f64 = 90.0;
-pub(crate) const DIST_TOWN_TOWN: f64 = 90.0;
-pub(crate) const DIST_TOWN_VILLAGE: f64 = 30.0;
-pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 30.0;
-pub(crate) const DIST_VILLAGE_CITY: f64 = 30.0;
+pub(crate) const DIST_CITY_CITY: f64 = 200.0;
+pub(crate) const DIST_CITY_TOWN: f64 = 30.0;
+pub(crate) const DIST_TOWN_TOWN: f64 = 30.0;
+pub(crate) const DIST_TOWN_VILLAGE: f64 = 10.0;
+pub(crate) const DIST_VILLAGE_VILLAGE: f64 = 10.0;
+pub(crate) const DIST_VILLAGE_CITY: f64 = 10.0;
 
 // ── 吸引力参数（次级加成，非硬性最大距离）───────────
 #[allow(dead_code)]

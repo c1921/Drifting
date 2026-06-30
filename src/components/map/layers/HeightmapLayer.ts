@@ -3,8 +3,8 @@ import { Container, Graphics } from "pixi.js"
 /**
  * 高度图灰度图层
  *
- * 将 512×512 高度数组下采样到 128×128，逐格绘制半透明灰度矩形。
- * 0.0 = 黑, 1.0 = 白，alpha ~0.35 以便上层元素可见。
+ * 将 512×512 高度数组下采样到 128×128，逐格绘制不透明灰度矩形。
+ * 0.0 = 黑, 1.0 = 白。
  * 置于宜居度热力图层下方（作为最底层地形基底）。
  */
 export function createHeightmapLayer(
@@ -55,7 +55,7 @@ export function createHeightmapLayer(
       // 灰度映射: 0→黑 0x000000, 1→白 0xffffff
       const brightness = Math.round(avg * 255)
       const color = (brightness << 16) | (brightness << 8) | brightness
-      const alpha = 0.15 + avg * 0.25 // 半透明，避免完全遮盖下层
+      const alpha = 1 // 不透明
 
       const wx = WORLD_MIN + gi * cellW
       const wy = WORLD_MIN + gj * cellH

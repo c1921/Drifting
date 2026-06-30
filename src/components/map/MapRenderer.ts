@@ -46,6 +46,20 @@ export async function createMap(
   let heightLayer: Container | null = null
   let contourLayer: Container | null = null
   let regionLayer: Container | null = null
+  let currentMode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours' | 'regions' = 'contours'
+
+  function applyOverlayMode() {
+    const showHab = currentMode === 'habitability'
+    const showFlatCenter = currentMode === 'flatCenter'
+    const showHeight = currentMode === 'heightmap'
+    const showContour = currentMode === 'contours'
+    const showRegion = currentMode === 'regions'
+    if (habLayer) habLayer.visible = showHab
+    if (flatCenterLayer) flatCenterLayer.visible = showFlatCenter
+    if (heightLayer) heightLayer.visible = showHeight
+    if (contourLayer) contourLayer.visible = showContour
+    if (regionLayer) regionLayer.visible = showRegion
+  }
 
   function buildWorld(map: import("@/types/map").MapData | null): Container {
     const colors = getThemeColors()
@@ -156,6 +170,7 @@ export async function createMap(
     world = buildWorld(mapData)
     app.stage.addChild(world)
     resetView()
+    applyOverlayMode()
   })
 
   return {
@@ -164,16 +179,8 @@ export async function createMap(
       app.destroy(true)
     },
     setOverlayMode(mode: 'habitability' | 'flatCenter' | 'heightmap' | 'contours' | 'regions') {
-      const showHab = mode === 'habitability'
-      const showFlatCenter = mode === 'flatCenter'
-      const showHeight = mode === 'heightmap'
-      const showContour = mode === 'contours'
-      const showRegion = mode === 'regions'
-      if (habLayer) habLayer.visible = showHab
-      if (flatCenterLayer) flatCenterLayer.visible = showFlatCenter
-      if (heightLayer) heightLayer.visible = showHeight
-      if (contourLayer) contourLayer.visible = showContour
-      if (regionLayer) regionLayer.visible = showRegion
+      currentMode = mode
+      applyOverlayMode()
     },
     async regenerate() {
       try {
@@ -188,6 +195,7 @@ export async function createMap(
       world = buildWorld(mapData)
       app.stage.addChild(world)
       resetView()
+      applyOverlayMode()
     },
   }
 }
